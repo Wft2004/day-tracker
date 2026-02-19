@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>Day Tracker</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a1a2e;--card:#16213e;--card-border:#0f3460;
+  --text:#e0e0e0;--text-dim:#8a8a9a;--text-bright:#ffffff;
+  --accent:#53d2dc;--amber:#e8a838;--green:#4caf50;--red:#e85d5d;
+  --radius:14px;--shadow:0 2px 12px rgba(0,0,0,.35);
+  --tap:44px;
+}
+html{font-size:16px;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{min-height:100dvh;padding:0 0 80px}
+button,input,select{font:inherit;color:inherit;background:none;border:none;outline:none}
+button{cursor:pointer;-webkit-user-select:none;user-select:none}
+
+/* ── NAV ── */
+.nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--card-border);z-index:100;padding:6px 0 env(safe-area-inset-bottom,6px)}
+.nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;font-size:.7rem;color:var(--text-dim);transition:color .15s}
+.nav button.active{color:var(--accent)}
+.nav button .icon{font-size:1.4rem}
+
+/* ── HEADER ── */
+.header{padding:16px 16px 8px;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:1.25rem;font-weight:700;color:var(--text-bright)}
+.header .date{font-size:.85rem;color:var(--text-dim)}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);margin:10px 14px;box-shadow:var(--shadow);overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;min-height:var(--tap);cursor:pointer;-webkit-user-select:none;user-select:none}
+.card-head h2{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.card-head .chevron{font-size:.75rem;color:var(--text-dim);transition:transform .2s}
+.card.collapsed .card-body{display:none}
+.card.collapsed .chevron{transform:rotate(-90deg)}
+.card-body{padding:4px 16px 16px}
+
+/* ── PILLS ── */
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{min-height:var(--tap);padding:8px 16px;border-radius:22px;background:var(--bg);border:1.5px solid var(--card-border);font-size:.9rem;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.pill.active{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}
+
+/* ── EMOJI PICKER ── */
+.emoji-row{display:flex;gap:6px}
+.emoji-btn{width:var(--tap);height:var(--tap);font-size:1.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .15s;border:2px solid transparent}
+.emoji-btn.active{border-color:var(--accent);background:rgba(83,210,220,.15);transform:scale(1.15)}
+
+/* ── CHECKLIST ── */
+.check-row{display:flex;align-items:center;gap:12px;min-height:var(--tap);padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.check-row:last-child{border-bottom:none}
+.checkbox{width:26px;height:26px;border-radius:7px;border:2px solid var(--card-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;font-size:.85rem}
+.check-row.checked .checkbox{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.check-row .label{font-size:.95rem;flex:1}
+.check-row.checked .label{color:var(--text-dim);text-decoration:line-through}
+
+/* ── TIME INPUT ── */
+.time-input{background:var(--bg);border:1.5px solid var(--card-border);border-radius:10px;padding:10px 14px;font-size:1rem;color:var(--text-bright);min-height:var(--tap)}
+
+/* ── FIELD ROW ── */
+.field{margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:.8rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── LIBRARY ── */
+.lib-active{text-align:center;padding:12px 0}
+.lib-active .elapsed{font-size:2.2rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent)}
+.lib-active .since{font-size:.8rem;color:var(--text-dim);margin-top:2px}
+.big-btn{width:100%;min-height:54px;border-radius:var(--radius);font-size:1.05rem;font-weight:600;transition:all .15s}
+.big-btn.start{background:var(--accent);color:var(--bg)}
+.big-btn.stop{background:var(--red);color:#fff}
+.session-line{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem}
+.session-line .time{color:var(--text-dim);font-size:.8rem}
+.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:.7rem;font-weight:600;margin-left:6px}
+.badge.noise{background:rgba(232,93,93,.2);color:var(--red)}
+.badge.clean{background:rgba(76,175,80,.2);color:var(--green)}
+
+/* ── FOOD ── */
+.meal-entry{background:var(--bg);border-radius:10px;padding:12px;margin-bottom:8px}
+.meal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.meal-time{font-size:.8rem;color:var(--text-dim)}
+.meal-del{color:var(--red);font-size:.85rem;padding:4px 8px}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:var(--tap);height:var(--tap);border-radius:50%;background:var(--bg);border:1.5px solid var(--card-border);font-size:1.3rem;display:flex;align-items:center;justify-content:center;color:var(--text-bright)}
+.stepper .val{font-size:1.3rem;font-weight:700;min-width:28px;text-align:center}
+
+/* ── HISTORY ── */
+.streaks{display:flex;gap:10px;padding:0 14px;margin-bottom:12px;flex-wrap:wrap}
+.streak-box{flex:1;min-width:90px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:12px;text-align:center}
+.streak-box .num{font-size:1.6rem;font-weight:700;color:var(--amber)}
+.streak-box .lbl{font-size:.7rem;color:var(--text-dim);margin-top:2px}
+.date-strip{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.date-strip::-webkit-scrollbar{display:none}
+.date-dot{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:44px;padding:8px 4px;border-radius:10px;cursor:pointer;transition:all .15s}
+.date-dot.sel{background:var(--card);border:1px solid var(--accent)}
+.date-dot .day{font-size:.7rem;color:var(--text-dim)}
+.date-dot .num{font-size:1rem;font-weight:600}
+.date-dot .dot{width:8px;height:8px;border-radius:50%}
+.dot-green{background:var(--green)}
+.dot-yellow{background:var(--amber)}
+.dot-gray{background:#444}
+.history-summary{margin:0 14px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px}
+.history-summary h3{font-size:.95rem;margin-bottom:12px;color:var(--text-bright)}
+.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem}
+.summary-row:last-child{border-bottom:none}
+.summary-row .k{color:var(--text-dim)}
+
+/* ── EDIT ANCHORS MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:var(--card);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:500px;max-height:80dvh;overflow-y:auto;padding:20px 16px env(safe-area-inset-bottom,16px)}
+.modal h3{margin-bottom:14px;font-size:1rem}
+.modal-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.modal-item input[type=text]{flex:1;background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;min-height:var(--tap)}
+.modal-item .del-anchor{color:var(--red);padding:8px}
+.modal-actions{display:flex;gap:8px;margin-top:14px}
+.modal-actions button{flex:1;min-height:var(--tap);border-radius:10px;font-weight:600;font-size:.95rem}
+.modal-actions .save{background:var(--accent);color:var(--bg)}
+.modal-actions .cancel{border:1px solid var(--card-border)}
+.add-link{font-size:.85rem;color:var(--accent);padding:8px 0;cursor:pointer}
+
+.hidden{display:none!important}
+.view{display:none}
+.view.active{display:block}
+</style>
+</head>
+<body>
+
+<!-- ════ TODAY VIEW ════ -->
+<div id="todayView" class="view active">
+  <div class="header">
+    <h1>Today</h1>
+    <div class="date" id="todayDate"></div>
+  </div>
+
+  <!-- Wake Up -->
+  <div class="card" id="wakeCard">
+    <div class="card-head" onclick="toggleCard('wakeCard')">
+      <h2><span>&#9728;&#65039;</span> Wake Up</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Wake time</label>
+        <input type="time" class="time-input" id="wakeTime" onchange="saveWake()">
+      </div>
+      <div class="field">
+        <label>Snoozed?</label>
+        <div class="pills" id="snoozePills">
+          <button class="pill" onclick="pickSnooze('no')">No</button>
+          <button class="pill" onclick="pickSnooze('once')">Once</button>
+          <button class="pill" onclick="pickSnooze('2+')">2+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Difficulty</label>
+        <div class="emoji-row" id="difficultyRow">
+          <button class="emoji-btn" onclick="pickDifficulty(1)">&#128522;</button>
+          <button class="emoji-btn" onclick="pickDifficulty(2)">&#128578;</button>
+          <button class="emoji-btn" onclick="pickDifficulty(3)">&#128528;</button>
+          <button class="emoji-btn" onclick="pickDifficulty(4)">&#128553;</button>
+          <button class="emoji-btn" onclick="pickDifficulty(5)">&#128565;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily Anchors -->
+  <div class="card" id="anchorsCard">
+    <div class="card-head" onclick="toggleCard('anchorsCard')">
+      <h2><span>&#9989;</span> Daily Anchors</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div id="anchorsList"></div>
+      <div class="add-link" onclick="openEditAnchors()">edit list</div>
+    </div>
+  </div>
+
+  <!-- Library / Study -->
+  <div class="card" id="libraryCard">
+    <div class="card-head" onclick="toggleCard('libraryCard')">
+      <h2><span>&#128218;</span> Library / Study</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div id="libContent"></div>
+    </div>
+  </div>
+
+  <!-- Food -->
+  <div class="card" id="foodCard">
+    <div class="card-head" onclick="toggleCard('foodCard')">
+      <h2><span>&#127860;</span> Food</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div id="mealsList"></div>
+      <button class="big-btn start" style="margin-top:10px" onclick="addMeal()">+ Add Meal</button>
+      <div class="field" style="margin-top:14px">
+        <label>Snack attacks</label>
+        <div class="stepper">
+          <button onclick="changeSnacks(-1)">&minus;</button>
+          <span class="val" id="snackVal">0</span>
+          <button onclick="changeSnacks(1)">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ HISTORY VIEW ════ -->
+<div id="historyView" class="view">
+  <div class="header">
+    <h1>History</h1>
+  </div>
+  <div class="streaks" id="streaksArea"></div>
+  <div class="date-strip" id="dateStrip"></div>
+  <div id="historySummary"></div>
+</div>
+
+<!-- ════ BOTTOM NAV ════ -->
+<nav class="nav">
+  <button class="active" id="navToday" onclick="switchView('today')">
+    <span class="icon">&#128197;</span>Today
+  </button>
+  <button id="navHistory" onclick="switchView('history')">
+    <span class="icon">&#128200;</span>History
+  </button>
+</nav>
+
+<!-- ════ EDIT ANCHORS MODAL ════ -->
+<div id="editModal" class="modal-overlay hidden" onclick="if(event.target===this)closeEditAnchors()">
+  <div class="modal">
+    <h3>Edit Daily Anchors</h3>
+    <div id="editAnchorsList"></div>
+    <div class="add-link" id="addAnchorBtn" onclick="addAnchorField()">+ Add item</div>
+    <div class="modal-actions">
+      <button class="cancel" onclick="closeEditAnchors()">Cancel</button>
+      <button class="save" onclick="saveAnchorsEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ LIBRARY POST-SESSION MODAL ════ -->
+<div id="libDoneModal" class="modal-overlay hidden" onclick="if(event.target===this)closeLibDone()">
+  <div class="modal">
+    <h3>Session complete</h3>
+    <div class="field">
+      <label>Left because of food noise?</label>
+      <div class="pills" id="noisePills">
+        <button class="pill" onclick="pickNoise(true)">Yes</button>
+        <button class="pill active" onclick="pickNoise(false)">No</button>
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Quality</label>
+      <div class="emoji-row" id="qualityRow">
+        <button class="emoji-btn" onclick="pickQuality(1)">&#128078;</button>
+        <button class="emoji-btn" onclick="pickQuality(2)">&#128076;</button>
+        <button class="emoji-btn" onclick="pickQuality(3)">&#128170;</button>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="save" onclick="confirmLibDone()">Save session</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+const STORAGE_KEY = 'daytracker';
+const DEFAULT_ANCHORS = ['Made bed','Shower','Left the house','Ate a real meal','Read something','In bed by target time'];
+
+let state = loadState();
+let currentHistoryDate = null;
+let pendingSession = null; // temp for lib done modal
+let libTimer = null;
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { settings: { anchors: [...DEFAULT_ANCHORS] }, days: {} };
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getDay(key) {
+  if (!key) key = todayKey();
+  if (!state.days[key]) {
+    state.days[key] = {
+      wake: { time: '', snooze: '', difficulty: 0 },
+      anchors: {},
+      library: { sessions: [], active: null },
+      food: { meals: [], snacks: 0 }
+    };
+  }
+  return state.days[key];
+}
+
+// ── View switching ──
+function switchView(v) {
+  document.getElementById('todayView').classList.toggle('active', v === 'today');
+  document.getElementById('historyView').classList.toggle('active', v === 'history');
+  document.getElementById('navToday').classList.toggle('active', v === 'today');
+  document.getElementById('navHistory').classList.toggle('active', v === 'history');
+  if (v === 'history') renderHistory();
+}
+
+// ── Card collapse ──
+function toggleCard(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ── Helpers ──
+function hhmm(date) {
+  if (typeof date === 'string' && date.includes(':')) return date;
+  const d = date instanceof Date ? date : new Date(date);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function formatDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return h + 'h ' + String(m).padStart(2,'0') + 'm';
+  return m + 'm ' + String(sec).padStart(2,'0') + 's';
+}
+
+// ══════════════════════
+//  WAKE UP
+// ══════════════════════
+function renderWake() {
+  const day = getDay();
+  const el = document.getElementById('wakeTime');
+  if (day.wake.time) {
+    el.value = day.wake.time;
+  } else {
+    el.value = hhmm(new Date());
+    day.wake.time = el.value;
+    save();
+  }
+  updatePills('snoozePills', day.wake.snooze);
+  updateEmojis('difficultyRow', day.wake.difficulty);
+}
+
+function saveWake() {
+  getDay().wake.time = document.getElementById('wakeTime').value;
+  save();
+}
+function pickSnooze(v) {
+  getDay().wake.snooze = v;
+  updatePills('snoozePills', v);
+  save();
+}
+function pickDifficulty(v) {
+  getDay().wake.difficulty = v;
+  updateEmojis('difficultyRow', v);
+  save();
+}
+
+function updatePills(containerId, activeVal) {
+  const pills = document.getElementById(containerId).querySelectorAll('.pill');
+  const vals = { 'snoozePills': ['no','once','2+'], 'noisePills': ['true','false'] };
+  const mapping = vals[containerId] || [];
+  pills.forEach((p, i) => {
+    const myVal = mapping[i] || p.textContent.trim().toLowerCase();
+    p.classList.toggle('active', String(activeVal) === String(myVal) || p.textContent.trim().toLowerCase() === String(activeVal).toLowerCase());
+  });
+}
+
+function updateEmojis(containerId, activeVal) {
+  const btns = document.getElementById(containerId).querySelectorAll('.emoji-btn');
+  btns.forEach((b, i) => b.classList.toggle('active', activeVal === i + 1));
+}
+
+// ══════════════════════
+//  DAILY ANCHORS
+// ══════════════════════
+function renderAnchors() {
+  const day = getDay();
+  const anchors = state.settings.anchors || DEFAULT_ANCHORS;
+  const list = document.getElementById('anchorsList');
+  list.innerHTML = '';
+  anchors.forEach(a => {
+    const checked = day.anchors[a] || false;
+    const row = document.createElement('div');
+    row.className = 'check-row' + (checked ? ' checked' : '');
+    row.innerHTML = '<div class="checkbox">' + (checked ? '&#10003;' : '') + '</div><div class="label">' + esc(a) + '</div>';
+    row.onclick = () => {
+      day.anchors[a] = !day.anchors[a];
+      save();
+      renderAnchors();
+    };
+    list.appendChild(row);
+  });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Edit anchors modal
+function openEditAnchors() {
+  document.getElementById('editModal').classList.remove('hidden');
+  renderEditAnchors();
+}
+function closeEditAnchors() {
+  document.getElementById('editModal').classList.add('hidden');
+}
+function renderEditAnchors() {
+  const list = document.getElementById('editAnchorsList');
+  const anchors = state.settings.anchors || DEFAULT_ANCHORS;
+  list.innerHTML = '';
+  anchors.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'modal-item';
+    row.innerHTML = '<input type="text" value="' + esc(a).replace(/"/g, '&quot;') + '" data-idx="' + i + '">'
+      + '<button class="del-anchor" onclick="removeAnchorField(' + i + ')">&#10005;</button>';
+    list.appendChild(row);
+  });
+  document.getElementById('addAnchorBtn').classList.toggle('hidden', anchors.length >= 10);
+}
+function addAnchorField() {
+  if (state.settings.anchors.length >= 10) return;
+  state.settings.anchors.push('');
+  renderEditAnchors();
+  const inputs = document.querySelectorAll('#editAnchorsList input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+function removeAnchorField(i) {
+  state.settings.anchors.splice(i, 1);
+  renderEditAnchors();
+}
+function saveAnchorsEdit() {
+  const inputs = document.querySelectorAll('#editAnchorsList input');
+  const newAnchors = [];
+  inputs.forEach(inp => {
+    const v = inp.value.trim();
+    if (v) newAnchors.push(v);
+  });
+  state.settings.anchors = newAnchors.length ? newAnchors : [...DEFAULT_ANCHORS];
+  save();
+  closeEditAnchors();
+  renderAnchors();
+}
+
+// ══════════════════════
+//  LIBRARY / STUDY
+// ══════════════════════
+function renderLibrary() {
+  const day = getDay();
+  const lib = day.library;
+  const el = document.getElementById('libContent');
+  let html = '';
+
+  // Past sessions
+  if (lib.sessions.length) {
+    lib.sessions.forEach((s, i) => {
+      const dur = formatDuration(s.end - s.start);
+      const noiseB = s.noise ? '<span class="badge noise">noise</span>' : '<span class="badge clean">clean</span>';
+      const qualEmoji = ['','&#128078;','&#128076;','&#128170;'][s.quality || 0] || '';
+      html += '<div class="session-line"><span>' + dur + ' ' + qualEmoji + noiseB + '</span><span class="time">' + hhmm(new Date(s.start)) + ' - ' + hhmm(new Date(s.end)) + '</span></div>';
+    });
+  }
+
+  if (lib.active) {
+    // Active session
+    html += '<div class="lib-active"><div class="elapsed" id="libElapsed">' + formatDuration(Date.now() - lib.active) + '</div>'
+      + '<div class="since">since ' + hhmm(new Date(lib.active)) + '</div></div>'
+      + '<button class="big-btn stop" onclick="stopLibrary()">Done</button>';
+    startLibTimer();
+  } else {
+    html += '<button class="big-btn start" onclick="startLibrary()">I\'m at the library</button>';
+  }
+
+  el.innerHTML = html;
+}
+
+function startLibrary() {
+  const day = getDay();
+  day.library.active = Date.now();
+  save();
+  renderLibrary();
+}
+
+function stopLibrary() {
+  pendingSession = { noise: false, quality: 0 };
+  document.getElementById('libDoneModal').classList.remove('hidden');
+  // reset modal UI
+  updatePills('noisePills', 'false');
+  updateEmojis('qualityRow', 0);
+}
+
+function pickNoise(v) {
+  if (pendingSession) pendingSession.noise = v;
+  document.querySelectorAll('#noisePills .pill').forEach((p, i) => {
+    p.classList.toggle('active', (i === 0 && v) || (i === 1 && !v));
+  });
+}
+function pickQuality(v) {
+  if (pendingSession) pendingSession.quality = v;
+  updateEmojis('qualityRow', v);
+}
+
+function confirmLibDone() {
+  const day = getDay();
+  if (!day.library.active) { closeLibDone(); return; }
+  day.library.sessions.push({
+    start: day.library.active,
+    end: Date.now(),
+    noise: pendingSession ? pendingSession.noise : false,
+    quality: pendingSession ? pendingSession.quality : 0
+  });
+  day.library.active = null;
+  pendingSession = null;
+  save();
+  closeLibDone();
+  clearInterval(libTimer);
+  renderLibrary();
+}
+
+function closeLibDone() {
+  document.getElementById('libDoneModal').classList.add('hidden');
+}
+
+function startLibTimer() {
+  clearInterval(libTimer);
+  libTimer = setInterval(() => {
+    const day = getDay();
+    if (!day.library.active) { clearInterval(libTimer); return; }
+    const el = document.getElementById('libElapsed');
+    if (el) el.textContent = formatDuration(Date.now() - day.library.active);
+  }, 1000);
+}
+
+// ══════════════════════
+//  FOOD
+// ══════════════════════
+function renderFood() {
+  const day = getDay();
+  const list = document.getElementById('mealsList');
+  list.innerHTML = '';
+  day.food.meals.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'meal-entry';
+    div.innerHTML = '<div class="meal-top"><span class="meal-time">' + m.time + '</span>'
+      + '<button class="meal-del" onclick="removeMeal(' + i + ')">&#10005;</button></div>'
+      + '<div class="field"><div class="pills">'
+      + ['Breakfast','Lunch','Dinner','Snack'].map(t =>
+          '<button class="pill' + (m.type === t ? ' active' : '') + '" onclick="setMealType(' + i + ',\'' + t + '\')">' + t + '</button>'
+        ).join('')
+      + '</div></div>'
+      + '<div class="field" style="margin-top:8px"><div class="pills">'
+      + '<button class="pill' + (m.planned ? ' active' : '') + '" onclick="setMealPlanned(' + i + ',true)">Planned</button>'
+      + '<button class="pill' + (!m.planned ? ' active' : '') + '" onclick="setMealPlanned(' + i + ',false)">Impulse</button>'
+      + '</div></div>';
+    list.appendChild(div);
+  });
+  document.getElementById('snackVal').textContent = day.food.snacks || 0;
+}
+
+function guessNextMealType() {
+  const h = new Date().getHours();
+  const day = getDay();
+  const types = day.food.meals.map(m => m.type);
+  if (h < 11 && !types.includes('Breakfast')) return 'Breakfast';
+  if (h < 15 && !types.includes('Lunch')) return 'Lunch';
+  if (h < 21 && !types.includes('Dinner')) return 'Dinner';
+  return 'Snack';
+}
+
+function addMeal() {
+  const day = getDay();
+  day.food.meals.push({ time: hhmm(new Date()), type: guessNextMealType(), planned: true });
+  save();
+  renderFood();
+}
+function removeMeal(i) {
+  getDay().food.meals.splice(i, 1);
+  save();
+  renderFood();
+}
+function setMealType(i, t) {
+  getDay().food.meals[i].type = t;
+  save();
+  renderFood();
+}
+function setMealPlanned(i, v) {
+  getDay().food.meals[i].planned = v;
+  save();
+  renderFood();
+}
+function changeSnacks(d) {
+  const day = getDay();
+  day.food.snacks = Math.max(0, Math.min(5, (day.food.snacks || 0) + d));
+  save();
+  document.getElementById('snackVal').textContent = day.food.snacks;
+}
+
+// ══════════════════════
+//  HISTORY
+// ══════════════════════
+function renderHistory() {
+  renderStreaks();
+  renderDateStrip();
+  renderDaySummary();
+}
+
+function renderStreaks() {
+  const days = Object.keys(state.days).sort();
+  const total = days.length;
+
+  // Library streak: consecutive days with >=1 session, counting back from today
+  let libStreak = 0;
+  const tk = todayKey();
+  let cursor = new Date();
+  while (true) {
+    const k = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0') + '-' + String(cursor.getDate()).padStart(2,'0');
+    const d = state.days[k];
+    if (d && d.library && d.library.sessions && d.library.sessions.length > 0) {
+      libStreak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  // No-noise streak: consecutive sessions without noise (across all days, most recent first)
+  let noNoise = 0;
+  const allSessions = [];
+  days.forEach(k => {
+    const d = state.days[k];
+    if (d && d.library && d.library.sessions) {
+      d.library.sessions.forEach(s => allSessions.push(s));
+    }
+  });
+  allSessions.sort((a, b) => b.start - a.start);
+  for (const s of allSessions) {
+    if (!s.noise) noNoise++;
+    else break;
+  }
+
+  document.getElementById('streaksArea').innerHTML =
+    '<div class="streak-box"><div class="num">' + total + '</div><div class="lbl">Days tracked</div></div>'
+    + '<div class="streak-box"><div class="num">' + libStreak + '</div><div class="lbl">Library streak</div></div>'
+    + '<div class="streak-box"><div class="num">' + noNoise + '</div><div class="lbl">No-noise sessions</div></div>';
+}
+
+function dayCompleteness(k) {
+  const d = state.days[k];
+  if (!d) return 'gray';
+  let filled = 0, total = 0;
+  // wake
+  total++; if (d.wake && d.wake.time) filled++;
+  // anchors
+  const anchors = state.settings.anchors || DEFAULT_ANCHORS;
+  total++; if (d.anchors && anchors.some(a => d.anchors[a])) filled++;
+  // library
+  total++; if (d.library && d.library.sessions && d.library.sessions.length) filled++;
+  // food
+  total++; if (d.food && d.food.meals && d.food.meals.length) filled++;
+  if (filled === total) return 'green';
+  if (filled > 0) return 'yellow';
+  return 'gray';
+}
+
+function renderDateStrip() {
+  const strip = document.getElementById('dateStrip');
+  strip.innerHTML = '';
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date();
+  if (!currentHistoryDate) currentHistoryDate = todayKey();
+
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const color = dayCompleteness(k);
+    const sel = k === currentHistoryDate ? ' sel' : '';
+    const dot = document.createElement('div');
+    dot.className = 'date-dot' + sel;
+    dot.innerHTML = '<span class="day">' + dayNames[d.getDay()] + '</span><span class="num">' + d.getDate() + '</span><span class="dot dot-' + color + '"></span>';
+    dot.onclick = () => { currentHistoryDate = k; renderDateStrip(); renderDaySummary(); };
+    strip.appendChild(dot);
+  }
+  // scroll to end
+  strip.scrollLeft = strip.scrollWidth;
+}
+
+function renderDaySummary() {
+  const el = document.getElementById('historySummary');
+  const k = currentHistoryDate || todayKey();
+  const d = state.days[k];
+  if (!d) {
+    el.innerHTML = '<div class="history-summary"><h3>' + k + '</h3><div style="color:var(--text-dim);padding:12px 0">No data for this day.</div></div>';
+    return;
+  }
+  let rows = '';
+  // Wake
+  if (d.wake && d.wake.time) {
+    const diffEmoji = ['','&#128522;','&#128578;','&#128528;','&#128553;','&#128565;'][d.wake.difficulty || 0] || '';
+    rows += row('Wake time', d.wake.time + (d.wake.snooze ? ' (snoozed: ' + d.wake.snooze + ')' : '') + ' ' + diffEmoji);
+  }
+  // Anchors
+  const anchors = state.settings.anchors || DEFAULT_ANCHORS;
+  const done = anchors.filter(a => d.anchors && d.anchors[a]);
+  if (done.length) rows += row('Anchors', done.length + '/' + anchors.length + ' — ' + done.join(', '));
+  // Library
+  if (d.library && d.library.sessions && d.library.sessions.length) {
+    const totalMs = d.library.sessions.reduce((s, x) => s + (x.end - x.start), 0);
+    const noisy = d.library.sessions.filter(x => x.noise).length;
+    rows += row('Library', d.library.sessions.length + ' session(s), ' + formatDuration(totalMs)
+      + (noisy ? ' (' + noisy + ' cut short by noise)' : ''));
+  }
+  // Food
+  if (d.food && d.food.meals && d.food.meals.length) {
+    const summary = d.food.meals.map(m => m.type + (m.planned ? '' : ' (impulse)')).join(', ');
+    rows += row('Meals', summary + (d.food.snacks ? ' | ' + d.food.snacks + ' snack attack(s)' : ''));
+  }
+  if (!rows) rows = '<div style="color:var(--text-dim);padding:12px 0">No data for this day.</div>';
+
+  el.innerHTML = '<div class="history-summary"><h3>' + k + '</h3>' + rows + '</div>';
+}
+
+function row(k, v) {
+  return '<div class="summary-row"><span class="k">' + k + '</span><span>' + v + '</span></div>';
+}
+
+// ══════════════════════
+//  MIDNIGHT ROLLOVER
+// ══════════════════════
+let lastKey = todayKey();
+function checkMidnight() {
+  const k = todayKey();
+  if (k !== lastKey) {
+    lastKey = k;
+    renderAll();
+  }
+}
+setInterval(checkMidnight, 30000);
+
+// ══════════════════════
+//  INIT
+// ══════════════════════
+function renderAll() {
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  // ensure today exists
+  getDay();
+  save();
+  renderWake();
+  renderAnchors();
+  renderLibrary();
+  renderFood();
+}
+
+renderAll();
+</script>
+</body>
+</html>
