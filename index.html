@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
 <title>Day Tracker</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -123,6 +124,31 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .modal-actions .cancel{border:1px solid var(--card-border)}
 .add-link{font-size:.85rem;color:var(--accent);padding:8px 0;cursor:pointer}
 
+/* ── GOOGLE TASKS ── */
+.gt-signin{width:100%;min-height:var(--tap);border-radius:10px;background:var(--bg);border:1.5px solid var(--card-border);font-size:.9rem;color:var(--text);display:flex;align-items:center;justify-content:center;gap:8px;padding:10px}
+.gt-signin:hover{border-color:var(--accent)}
+.gt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.gt-header select{background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:6px 10px;font-size:.85rem;color:var(--text);min-height:36px}
+.gt-signout{font-size:.75rem;color:var(--text-dim);padding:4px 8px;border:1px solid var(--card-border);border-radius:6px}
+.gt-task{display:flex;align-items:flex-start;gap:12px;min-height:var(--tap);padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.gt-task:last-child{border-bottom:none}
+.gt-task .checkbox{margin-top:2px}
+.gt-task.checked .checkbox{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.gt-task .gt-title{font-size:.95rem;flex:1;line-height:1.4}
+.gt-task.checked .gt-title{color:var(--text-dim);text-decoration:line-through}
+.gt-task .gt-due{font-size:.7rem;color:var(--text-dim);margin-top:2px}
+.gt-add-row{display:flex;gap:8px;margin-top:10px}
+.gt-add-row input{flex:1;background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;min-height:var(--tap);font-size:.9rem}
+.gt-add-row button{min-width:var(--tap);min-height:var(--tap);border-radius:8px;background:var(--accent);color:var(--bg);font-size:1.2rem;font-weight:700}
+.gt-loading{text-align:center;padding:16px 0;color:var(--text-dim);font-size:.9rem}
+.gt-error{text-align:center;padding:12px;background:rgba(232,93,93,.1);border-radius:8px;color:var(--red);font-size:.85rem;margin-bottom:8px}
+.gt-setup{padding:8px 0;font-size:.85rem;color:var(--text-dim);line-height:1.5}
+.gt-setup code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:.8rem;color:var(--accent)}
+.gt-config-row{display:flex;gap:8px;margin-top:10px}
+.gt-config-row input{flex:1;background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;min-height:var(--tap);font-size:.8rem}
+.gt-config-row button{min-height:var(--tap);padding:0 16px;border-radius:8px;background:var(--accent);color:var(--bg);font-weight:600;font-size:.85rem}
+.gt-refresh{font-size:.75rem;color:var(--accent);padding:4px 8px}
+
 .hidden{display:none!important}
 .view{display:none}
 .view.active{display:block}
@@ -178,6 +204,17 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     <div class="card-body">
       <div id="anchorsList"></div>
       <div class="add-link" onclick="openEditAnchors()">edit list</div>
+    </div>
+  </div>
+
+  <!-- Google Tasks -->
+  <div class="card" id="tasksCard">
+    <div class="card-head" onclick="toggleCard('tasksCard')">
+      <h2><span>&#128203;</span> Google Tasks</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div id="gtContent"></div>
     </div>
   </div>
 
@@ -757,6 +794,250 @@ function checkMidnight() {
 setInterval(checkMidnight, 30000);
 
 // ══════════════════════
+//  GOOGLE TASKS
+// ══════════════════════
+let gtToken = null;
+let gtTokenClient = null;
+let gtTaskLists = [];
+let gtTasks = [];
+let gtLoading = false;
+
+function getGtClientId() {
+  return (state.settings && state.settings.gtClientId) || '';
+}
+function getGtListId() {
+  return (state.settings && state.settings.gtListId) || '';
+}
+
+function renderGoogleTasks() {
+  const el = document.getElementById('gtContent');
+  const clientId = getGtClientId();
+
+  // No client ID configured — show setup
+  if (!clientId) {
+    el.innerHTML = '<div class="gt-setup">'
+      + 'To sync Google Tasks, you need a Google Cloud Client ID.'
+      + '<br><br>1. Go to <strong>console.cloud.google.com</strong>'
+      + '<br>2. Create a project &amp; enable the <strong>Google Tasks API</strong>'
+      + '<br>3. Create <strong>OAuth 2.0 credentials</strong> (Web app)'
+      + '<br>4. Add <code>https://wft2004.github.io</code> as authorized JS origin'
+      + '<br>5. Paste the Client ID below'
+      + '</div>'
+      + '<div class="gt-config-row">'
+      + '<input type="text" id="gtClientIdInput" placeholder="Client ID (ends in .apps.googleusercontent.com)">'
+      + '<button onclick="saveGtClientId()">Save</button>'
+      + '</div>';
+    return;
+  }
+
+  // Loading
+  if (gtLoading) {
+    el.innerHTML = '<div class="gt-loading">Loading tasks...</div>';
+    return;
+  }
+
+  // Not signed in
+  if (!gtToken) {
+    el.innerHTML = '<button class="gt-signin" onclick="gtSignIn()">Sign in with Google</button>'
+      + '<div style="text-align:center;margin-top:8px"><button class="gt-signout" onclick="clearGtClientId()">change Client ID</button></div>';
+    return;
+  }
+
+  // Signed in — render tasks
+  let html = '<div class="gt-header">'
+    + '<select id="gtListSelect" onchange="gtSwitchList(this.value)">';
+  gtTaskLists.forEach(l => {
+    html += '<option value="' + l.id + '"' + (l.id === getGtListId() ? ' selected' : '') + '>' + esc(l.title) + '</option>';
+  });
+  html += '</select>'
+    + '<span><button class="gt-refresh" onclick="gtFetchTasks()">refresh</button>'
+    + '<button class="gt-signout" onclick="gtSignOut()">sign out</button></span></div>';
+
+  // Task items — incomplete first, then completed
+  const incomplete = gtTasks.filter(t => t.status !== 'completed');
+  const completed = gtTasks.filter(t => t.status === 'completed');
+  const ordered = [...incomplete, ...completed];
+
+  if (ordered.length === 0) {
+    html += '<div style="color:var(--text-dim);padding:12px 0;text-align:center">No tasks in this list.</div>';
+  }
+  ordered.forEach(t => {
+    const done = t.status === 'completed';
+    const dueStr = t.due ? '<div class="gt-due">Due ' + t.due.substring(0, 10) + '</div>' : '';
+    html += '<div class="gt-task' + (done ? ' checked' : '') + '" onclick="gtToggleTask(\'' + t.id + '\')">'
+      + '<div class="checkbox">' + (done ? '&#10003;' : '') + '</div>'
+      + '<div><div class="gt-title">' + esc(t.title) + '</div>' + dueStr + '</div></div>';
+  });
+
+  // Add task
+  html += '<div class="gt-add-row">'
+    + '<input type="text" id="gtNewTask" placeholder="Add a task..." onkeydown="if(event.key===\'Enter\')gtAddTask()">'
+    + '<button onclick="gtAddTask()">+</button></div>';
+
+  el.innerHTML = html;
+}
+
+function saveGtClientId() {
+  const v = document.getElementById('gtClientIdInput').value.trim();
+  if (!v) return;
+  if (!state.settings) state.settings = {};
+  state.settings.gtClientId = v;
+  save();
+  gtInitTokenClient();
+  renderGoogleTasks();
+}
+
+function clearGtClientId() {
+  if (!state.settings) return;
+  delete state.settings.gtClientId;
+  delete state.settings.gtListId;
+  gtToken = null;
+  gtTaskLists = [];
+  gtTasks = [];
+  save();
+  renderGoogleTasks();
+}
+
+function gtInitTokenClient() {
+  const clientId = getGtClientId();
+  if (!clientId || typeof google === 'undefined') return;
+  gtTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/tasks',
+    callback: (resp) => {
+      if (resp.error) {
+        gtLoading = false;
+        renderGoogleTasks();
+        return;
+      }
+      gtToken = resp.access_token;
+      gtFetchLists();
+    }
+  });
+}
+
+function gtSignIn() {
+  if (!gtTokenClient) gtInitTokenClient();
+  if (!gtTokenClient) return;
+  gtLoading = true;
+  renderGoogleTasks();
+  gtTokenClient.requestAccessToken();
+}
+
+function gtSignOut() {
+  if (gtToken) {
+    google.accounts.oauth2.revoke(gtToken);
+  }
+  gtToken = null;
+  gtTaskLists = [];
+  gtTasks = [];
+  renderGoogleTasks();
+}
+
+async function gtApi(url, options) {
+  const resp = await fetch(url, {
+    ...options,
+    headers: { 'Authorization': 'Bearer ' + gtToken, 'Content-Type': 'application/json', ...(options && options.headers) }
+  });
+  if (resp.status === 401) {
+    gtToken = null;
+    gtLoading = false;
+    renderGoogleTasks();
+    return null;
+  }
+  if (!resp.ok) return null;
+  if (resp.status === 204) return {};
+  return resp.json();
+}
+
+async function gtFetchLists() {
+  gtLoading = true;
+  renderGoogleTasks();
+  const data = await gtApi('https://tasks.googleapis.com/tasks/v1/users/@me/lists');
+  gtLoading = false;
+  if (!data) { renderGoogleTasks(); return; }
+  gtTaskLists = data.items || [];
+  // Select saved list or default to first
+  if (!getGtListId() && gtTaskLists.length) {
+    if (!state.settings) state.settings = {};
+    state.settings.gtListId = gtTaskLists[0].id;
+    save();
+  }
+  await gtFetchTasks();
+}
+
+async function gtFetchTasks() {
+  const listId = getGtListId();
+  if (!listId || !gtToken) return;
+  gtLoading = true;
+  renderGoogleTasks();
+  const data = await gtApi('https://tasks.googleapis.com/tasks/v1/lists/' + encodeURIComponent(listId) + '/tasks?maxResults=100&showCompleted=true&showHidden=true');
+  gtLoading = false;
+  if (!data) { renderGoogleTasks(); return; }
+  gtTasks = (data.items || []).filter(t => t.title);
+  renderGoogleTasks();
+}
+
+function gtSwitchList(listId) {
+  if (!state.settings) state.settings = {};
+  state.settings.gtListId = listId;
+  save();
+  gtFetchTasks();
+}
+
+async function gtToggleTask(taskId) {
+  const listId = getGtListId();
+  const task = gtTasks.find(t => t.id === taskId);
+  if (!task || !listId) return;
+  const newStatus = task.status === 'completed' ? 'needsAction' : 'completed';
+  // Optimistic UI update
+  task.status = newStatus;
+  if (newStatus === 'completed') task.completed = new Date().toISOString();
+  else delete task.completed;
+  renderGoogleTasks();
+  // API call
+  const body = { status: newStatus };
+  if (newStatus === 'completed') body.completed = task.completed;
+  else body.completed = null;
+  await gtApi('https://tasks.googleapis.com/tasks/v1/lists/' + encodeURIComponent(listId) + '/tasks/' + encodeURIComponent(taskId), {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  });
+}
+
+async function gtAddTask() {
+  const input = document.getElementById('gtNewTask');
+  const title = input.value.trim();
+  if (!title) return;
+  const listId = getGtListId();
+  if (!listId || !gtToken) return;
+  input.value = '';
+  const data = await gtApi('https://tasks.googleapis.com/tasks/v1/lists/' + encodeURIComponent(listId) + '/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ title: title, status: 'needsAction' })
+  });
+  if (data) {
+    gtTasks.unshift(data);
+    renderGoogleTasks();
+  }
+}
+
+// Init token client when GIS library loads
+function gtOnGisLoad() {
+  if (getGtClientId()) gtInitTokenClient();
+}
+// GIS may load before or after our script
+if (typeof google !== 'undefined' && google.accounts) {
+  gtOnGisLoad();
+} else {
+  const origOnload = window.onload;
+  window.onload = function() {
+    if (origOnload) origOnload();
+    setTimeout(gtOnGisLoad, 500);
+  };
+}
+
+// ══════════════════════
 //  INIT
 // ══════════════════════
 function renderAll() {
@@ -766,6 +1047,7 @@ function renderAll() {
   save();
   renderWake();
   renderAnchors();
+  renderGoogleTasks();
   renderLibrary();
   renderFood();
 }
