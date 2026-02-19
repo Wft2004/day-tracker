@@ -801,6 +801,7 @@ let gtTokenClient = null;
 let gtTaskLists = [];
 let gtTasks = [];
 let gtLoading = false;
+let gtHideCompleted = true;
 
 function getGtClientId() {
   return (state.settings && state.settings.gtClientId) || '';
@@ -853,15 +854,15 @@ function renderGoogleTasks() {
     + '<span><button class="gt-refresh" onclick="gtFetchTasks()">refresh</button>'
     + '<button class="gt-signout" onclick="gtSignOut()">sign out</button></span></div>';
 
-  // Task items — incomplete first, then completed
+  // Task items
   const incomplete = gtTasks.filter(t => t.status !== 'completed');
   const completed = gtTasks.filter(t => t.status === 'completed');
-  const ordered = [...incomplete, ...completed];
+  const visible = gtHideCompleted ? incomplete : [...incomplete, ...completed];
 
-  if (ordered.length === 0) {
-    html += '<div style="color:var(--text-dim);padding:12px 0;text-align:center">No tasks in this list.</div>';
+  if (visible.length === 0 && incomplete.length === 0) {
+    html += '<div style="color:var(--text-dim);padding:12px 0;text-align:center">' + (gtHideCompleted && completed.length ? 'All tasks completed!' : 'No tasks in this list.') + '</div>';
   }
-  ordered.forEach(t => {
+  visible.forEach(t => {
     const done = t.status === 'completed';
     const dueStr = t.due ? '<div class="gt-due">Due ' + t.due.substring(0, 10) + '</div>' : '';
     html += '<div class="gt-task' + (done ? ' checked' : '') + '" onclick="gtToggleTask(\'' + t.id + '\')">'
@@ -869,12 +870,23 @@ function renderGoogleTasks() {
       + '<div><div class="gt-title">' + esc(t.title) + '</div>' + dueStr + '</div></div>';
   });
 
+  // Toggle completed visibility
+  if (completed.length) {
+    html += '<div style="text-align:center;padding-top:8px"><button class="gt-refresh" onclick="gtToggleHideCompleted()">'
+      + (gtHideCompleted ? 'Show ' + completed.length + ' completed' : 'Hide completed') + '</button></div>';
+  }
+
   // Add task
   html += '<div class="gt-add-row">'
     + '<input type="text" id="gtNewTask" placeholder="Add a task..." onkeydown="if(event.key===\'Enter\')gtAddTask()">'
     + '<button onclick="gtAddTask()">+</button></div>';
 
   el.innerHTML = html;
+}
+
+function gtToggleHideCompleted() {
+  gtHideCompleted = !gtHideCompleted;
+  renderGoogleTasks();
 }
 
 function saveGtClientId() {
