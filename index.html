@@ -839,7 +839,7 @@ function renderGoogleTasks() {
 
   // Not signed in
   if (!gtToken) {
-    el.innerHTML = '<button class="gt-signin" onclick="gtSignIn()">Sign in with Google</button>'
+    el.innerHTML = '<button class="gt-signin" onclick="gtSignInInteractive()">Sign in with Google</button>'
       + '<div style="text-align:center;margin-top:8px"><button class="gt-signout" onclick="clearGtClientId()">change Client ID</button></div>';
     return;
   }
@@ -910,6 +910,23 @@ function clearGtClientId() {
   renderGoogleTasks();
 }
 
+function gtSaveToken(token, expiresIn) {
+  localStorage.setItem('gt_token', token);
+  localStorage.setItem('gt_token_exp', String(Date.now() + (expiresIn - 60) * 1000));
+}
+function gtLoadToken() {
+  const token = localStorage.getItem('gt_token');
+  const exp = Number(localStorage.getItem('gt_token_exp') || 0);
+  if (token && Date.now() < exp) return token;
+  localStorage.removeItem('gt_token');
+  localStorage.removeItem('gt_token_exp');
+  return null;
+}
+function gtClearToken() {
+  localStorage.removeItem('gt_token');
+  localStorage.removeItem('gt_token_exp');
+}
+
 function gtInitTokenClient() {
   const clientId = getGtClientId();
   if (!clientId || typeof google === 'undefined') return;
@@ -923,6 +940,7 @@ function gtInitTokenClient() {
         return;
       }
       gtToken = resp.access_token;
+      gtSaveToken(resp.access_token, resp.expires_in || 3600);
       gtFetchLists();
     }
   });
@@ -933,7 +951,15 @@ function gtSignIn() {
   if (!gtTokenClient) return;
   gtLoading = true;
   renderGoogleTasks();
-  gtTokenClient.requestAccessToken();
+  gtTokenClient.requestAccessToken({ prompt: '' });
+}
+
+function gtSignInInteractive() {
+  if (!gtTokenClient) gtInitTokenClient();
+  if (!gtTokenClient) return;
+  gtLoading = true;
+  renderGoogleTasks();
+  gtTokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 function gtSignOut() {
@@ -941,9 +967,23 @@ function gtSignOut() {
     google.accounts.oauth2.revoke(gtToken);
   }
   gtToken = null;
+  gtClearToken();
   gtTaskLists = [];
   gtTasks = [];
   renderGoogleTasks();
+}
+
+function gtTryRestore() {
+  const saved = gtLoadToken();
+  if (saved) {
+    gtToken = saved;
+    gtFetchLists();
+    return;
+  }
+  // No saved token — try silent re-auth if user previously signed in
+  if (getGtClientId() && gtTokenClient) {
+    gtTokenClient.requestAccessToken({ prompt: '' });
+  }
 }
 
 async function gtApi(url, options) {
@@ -953,6 +993,7 @@ async function gtApi(url, options) {
   });
   if (resp.status === 401) {
     gtToken = null;
+    gtClearToken();
     gtLoading = false;
     renderGoogleTasks();
     return null;
@@ -1034,9 +1075,12 @@ async function gtAddTask() {
   }
 }
 
-// Init token client when GIS library loads
+// Init token client when GIS library loads, then try to restore session
 function gtOnGisLoad() {
-  if (getGtClientId()) gtInitTokenClient();
+  if (getGtClientId()) {
+    gtInitTokenClient();
+    gtTryRestore();
+  }
 }
 // GIS may load before or after our script
 if (typeof google !== 'undefined' && google.accounts) {
