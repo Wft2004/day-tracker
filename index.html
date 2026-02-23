@@ -339,13 +339,6 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     <div style="border-top:1px solid var(--card-border);margin:14px 0;padding-top:14px">
       <h3 style="font-size:.95rem;margin-bottom:12px">Bedtime Reminder</h3>
       <div class="field">
-        <label>Enable</label>
-        <div class="pills" id="bedtimeEnablePills">
-          <button class="pill" onclick="setBedtimeEnabled(true)">On</button>
-          <button class="pill active" onclick="setBedtimeEnabled(false)">Off</button>
-        </div>
-      </div>
-      <div class="field">
         <label>Bedtime</label>
         <input type="time" class="time-input" id="bedtimeTime" value="22:30" onchange="saveBedtimeTime()">
       </div>
@@ -357,9 +350,11 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
           <button class="pill" onclick="setBedtimeOffset(30)">30 min before</button>
         </div>
       </div>
-      <div class="field" id="bedtimePermField">
-        <button class="settings-btn" onclick="requestNotifPermission()">&#128276; Allow notifications</button>
+      <div class="field">
+        <label>ntfy topic</label>
+        <input type="text" class="time-input" id="bedtimeNtfyTopic" placeholder="e.g. my-bedtime" oninput="saveBedtimeNtfyTopic()" style="width:100%;box-sizing:border-box">
       </div>
+      <div id="bedtimeSetupGuide"></div>
     </div>
     <div class="modal-actions">
       <button class="cancel" onclick="closeSettings()">Close</button>
@@ -1200,24 +1195,22 @@ function importData(event) {
 // ══════════════════════
 //  BEDTIME REMINDER
 // ══════════════════════
-let lastBedtimeNotifDate = null;
-
 function getBedtimeSettings() {
   if (!state.settings.bedtime) {
-    state.settings.bedtime = { enabled: false, time: '22:30', offset: 0 };
+    state.settings.bedtime = { time: '22:30', offset: 0, ntfyTopic: '' };
+  }
+  // migrate old shape
+  if (state.settings.bedtime.ntfyTopic === undefined) {
+    state.settings.bedtime.ntfyTopic = '';
+    delete state.settings.bedtime.enabled;
   }
   return state.settings.bedtime;
-}
-
-function setBedtimeEnabled(v) {
-  getBedtimeSettings().enabled = v;
-  save();
-  renderBedtimeUI();
 }
 
 function saveBedtimeTime() {
   getBedtimeSettings().time = document.getElementById('bedtimeTime').value;
   save();
+  renderBedtimeUI();
 }
 
 function setBedtimeOffset(v) {
@@ -1226,12 +1219,24 @@ function setBedtimeOffset(v) {
   renderBedtimeUI();
 }
 
+function saveBedtimeNtfyTopic() {
+  getBedtimeSettings().ntfyTopic = document.getElementById('bedtimeNtfyTopic').value.trim();
+  save();
+  renderBedtimeUI();
+}
+
+function bedtimeCron() {
+  const b = getBedtimeSettings();
+  const [bh, bm] = b.time.split(':').map(Number);
+  let totalMin = bh * 60 + bm - b.offset;
+  if (totalMin < 0) totalMin += 1440;
+  const h = Math.floor(totalMin / 60) % 24;
+  const m = totalMin % 60;
+  return m + ' ' + h + ' * * *';
+}
+
 function renderBedtimeUI() {
   const b = getBedtimeSettings();
-  // Enable pills
-  const pills = document.getElementById('bedtimeEnablePills').querySelectorAll('.pill');
-  pills[0].classList.toggle('active', b.enabled);
-  pills[1].classList.toggle('active', !b.enabled);
   // Time
   document.getElementById('bedtimeTime').value = b.time;
   // Offset pills
@@ -1239,39 +1244,40 @@ function renderBedtimeUI() {
   offPills[0].classList.toggle('active', b.offset === 0);
   offPills[1].classList.toggle('active', b.offset === 15);
   offPills[2].classList.toggle('active', b.offset === 30);
-  // Permission button
-  const permField = document.getElementById('bedtimePermField');
-  if (typeof Notification === 'undefined' || Notification.permission !== 'default') {
-    permField.classList.add('hidden');
-  } else {
-    permField.classList.remove('hidden');
+  // ntfy topic
+  const topicInput = document.getElementById('bedtimeNtfyTopic');
+  if (topicInput.value.trim() !== b.ntfyTopic) topicInput.value = b.ntfyTopic;
+  // Setup guide
+  const guide = document.getElementById('bedtimeSetupGuide');
+  if (!b.ntfyTopic) {
+    guide.innerHTML = '';
+    return;
   }
+  const cron = bedtimeCron();
+  const ntfyUrl = 'https://ntfy.sh/' + esc(b.ntfyTopic);
+  const msg = b.offset > 0 ? b.offset + ' minutes until bedtime' : 'Time for bed!';
+  guide.innerHTML =
+    '<div style="margin-top:14px;padding:12px;background:var(--bg);border:1.5px solid var(--card-border);border-radius:10px;font-size:.82rem;line-height:1.6">' +
+      '<strong style="color:var(--text-bright)">Setup guide</strong><br>' +
+      '<span style="color:var(--text-dim)">1. Install the <a href="https://ntfy.sh" target="_blank" style="color:var(--accent)">ntfy app</a> on your phone</span><br>' +
+      '<span style="color:var(--text-dim)">2. Subscribe to: <code style="color:var(--accent)">' + esc(b.ntfyTopic) + '</code></span><br>' +
+      '<span style="color:var(--text-dim)">3. Create a cron job at <a href="https://cron-job.org" target="_blank" style="color:var(--accent)">cron-job.org</a>:</span><br>' +
+      '<div style="margin:8px 0 4px;padding:8px 10px;background:var(--card-bg);border-radius:8px;font-family:monospace;font-size:.78rem;word-break:break-all">' +
+        '<div style="color:var(--text-dim)">URL: <span style="color:var(--text-bright)">' + ntfyUrl + '</span></div>' +
+        '<div style="color:var(--text-dim)">Method: <span style="color:var(--text-bright)">POST</span></div>' +
+        '<div style="color:var(--text-dim)">Body: <span style="color:var(--text-bright)">' + esc(msg) + '</span></div>' +
+        '<div style="color:var(--text-dim)">Schedule: <span id="bedtimeCronExpr" style="color:var(--text-bright)">' + esc(cron) + '</span>' +
+          ' <button onclick="copyBedtimeCron()" style="background:none;border:1px solid var(--card-border);border-radius:4px;color:var(--accent);font-size:.72rem;padding:2px 8px;margin-left:6px;cursor:pointer">Copy</button></span></div>' +
+      '</div>' +
+    '</div>';
 }
 
-function requestNotifPermission() {
-  if (typeof Notification === 'undefined') return;
-  Notification.requestPermission().then(() => renderBedtimeUI());
+function copyBedtimeCron() {
+  navigator.clipboard.writeText(bedtimeCron()).then(function() {
+    var btn = document.querySelector('#bedtimeSetupGuide button');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy'; }, 1500); }
+  });
 }
-
-function checkBedtimeReminder() {
-  const b = getBedtimeSettings();
-  if (!b.enabled) return;
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  const today = todayKey();
-  if (lastBedtimeNotifDate === today) return;
-  const [bh, bm] = b.time.split(':').map(Number);
-  let targetMin = bh * 60 + bm - b.offset;
-  if (targetMin < 0) targetMin += 1440;
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  if (nowMin >= targetMin && nowMin < targetMin + 5) {
-    lastBedtimeNotifDate = today;
-    const label = b.offset > 0 ? b.offset + ' minutes until bedtime' : 'Time for bed!';
-    new Notification('Day Tracker', { body: label, icon: 'icon.svg' });
-  }
-}
-
-setInterval(checkBedtimeReminder, 60000);
 
 // ══════════════════════
 //  INIT
