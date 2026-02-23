@@ -70,27 +70,8 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .field:last-child{margin-bottom:0}
 .field label{display:block;font-size:.8rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
 
-/* ── LIBRARY ── */
-.lib-active{text-align:center;padding:12px 0}
-.lib-active .elapsed{font-size:2.2rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent)}
-.lib-active .since{font-size:.8rem;color:var(--text-dim);margin-top:2px}
 .big-btn{width:100%;min-height:54px;border-radius:var(--radius);font-size:1.05rem;font-weight:600;transition:all .15s}
 .big-btn.start{background:var(--accent);color:var(--bg)}
-.big-btn.stop{background:var(--red);color:#fff}
-.session-line{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.9rem}
-.session-line .time{color:var(--text-dim);font-size:.8rem}
-.badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:.7rem;font-weight:600;margin-left:6px}
-.badge.noise{background:rgba(232,93,93,.2);color:var(--red)}
-.badge.clean{background:rgba(76,175,80,.2);color:var(--green)}
-
-/* ── FOOD ── */
-.meal-entry{background:var(--bg);border-radius:10px;padding:12px;margin-bottom:8px}
-.meal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.meal-time{font-size:.8rem;color:var(--text-dim)}
-.meal-del{color:var(--red);font-size:.85rem;padding:4px 8px}
-.stepper{display:flex;align-items:center;gap:12px}
-.stepper button{width:var(--tap);height:var(--tap);border-radius:50%;background:var(--bg);border:1.5px solid var(--card-border);font-size:1.3rem;display:flex;align-items:center;justify-content:center;color:var(--text-bright)}
-.stepper .val{font-size:1.3rem;font-weight:700;min-width:28px;text-align:center}
 
 /* ── HISTORY ── */
 .streaks{display:flex;gap:10px;padding:0 14px;margin-bottom:12px;flex-wrap:wrap}
@@ -216,37 +197,6 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     </div>
   </div>
 
-  <!-- Library / Study -->
-  <div class="card" id="libraryCard">
-    <div class="card-head" onclick="toggleCard('libraryCard')">
-      <h2><span>&#128218;</span> Library / Study</h2>
-      <span class="chevron">&#9660;</span>
-    </div>
-    <div class="card-body">
-      <div id="libContent"></div>
-    </div>
-  </div>
-
-  <!-- Food -->
-  <div class="card" id="foodCard">
-    <div class="card-head" onclick="toggleCard('foodCard')">
-      <h2><span>&#127860;</span> Food</h2>
-      <span class="chevron">&#9660;</span>
-    </div>
-    <div class="card-body">
-      <div id="mealsList"></div>
-      <button class="big-btn start" style="margin-top:10px" onclick="addMeal()">+ Add Meal</button>
-      <div class="field" style="margin-top:14px">
-        <label>Snack attacks</label>
-        <div class="stepper">
-          <button onclick="changeSnacks(-1)">&minus;</button>
-          <span class="val" id="snackVal">0</span>
-          <button onclick="changeSnacks(1)">+</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Bedtime Productivity -->
   <div class="card" id="bedtimeCard">
     <div class="card-head" onclick="toggleCard('bedtimeCard')">
@@ -306,30 +256,6 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   </div>
 </div>
 
-<!-- ════ LIBRARY POST-SESSION MODAL ════ -->
-<div id="libDoneModal" class="modal-overlay hidden" onclick="if(event.target===this)closeLibDone()">
-  <div class="modal">
-    <h3>Session complete</h3>
-    <div class="field">
-      <label>Left because of food noise?</label>
-      <div class="pills" id="noisePills">
-        <button class="pill" onclick="pickNoise(true)">Yes</button>
-        <button class="pill active" onclick="pickNoise(false)">No</button>
-      </div>
-    </div>
-    <div class="field" style="margin-top:14px">
-      <label>Quality</label>
-      <div class="emoji-row" id="qualityRow">
-        <button class="emoji-btn" onclick="pickQuality(1)">&#128078;</button>
-        <button class="emoji-btn" onclick="pickQuality(2)">&#128076;</button>
-        <button class="emoji-btn" onclick="pickQuality(3)">&#128170;</button>
-      </div>
-    </div>
-    <div class="modal-actions" style="margin-top:18px">
-      <button class="save" onclick="confirmLibDone()">Save session</button>
-    </div>
-  </div>
-</div>
 
 <!-- ════ SETTINGS MODAL ════ -->
 <div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
@@ -376,8 +302,6 @@ const DEFAULT_ANCHORS = ['Made bed','Shower','Left the house','Ate a real meal',
 
 let state = loadState();
 let currentHistoryDate = null;
-let pendingSession = null; // temp for lib done modal
-let libTimer = null;
 
 function todayKey() {
   const d = new Date();
@@ -430,15 +354,6 @@ function hhmm(date) {
   return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
 }
 
-function formatDuration(ms) {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return h + 'h ' + String(m).padStart(2,'0') + 'm';
-  return m + 'm ' + String(sec).padStart(2,'0') + 's';
-}
-
 // ══════════════════════
 //  WAKE UP
 // ══════════════════════
@@ -464,20 +379,6 @@ function renderWake() {
 function saveWake() {
   getDay().wake.time = document.getElementById('wakeTime').value;
   save();
-}
-function updatePills(containerId, activeVal) {
-  const pills = document.getElementById(containerId).querySelectorAll('.pill');
-  const vals = { 'noisePills': ['true','false'] };
-  const mapping = vals[containerId] || [];
-  pills.forEach((p, i) => {
-    const myVal = mapping[i] || p.textContent.trim().toLowerCase();
-    p.classList.toggle('active', String(activeVal) === String(myVal) || p.textContent.trim().toLowerCase() === String(activeVal).toLowerCase());
-  });
-}
-
-function updateEmojis(containerId, activeVal) {
-  const btns = document.getElementById(containerId).querySelectorAll('.emoji-btn');
-  btns.forEach((b, i) => b.classList.toggle('active', activeVal === i + 1));
 }
 
 // ══════════════════════
@@ -623,159 +524,6 @@ function saveBedtimeEdit() {
 }
 
 // ══════════════════════
-//  LIBRARY / STUDY
-// ══════════════════════
-function renderLibrary() {
-  const day = getDay();
-  const lib = day.library;
-  const el = document.getElementById('libContent');
-  let html = '';
-
-  // Past sessions
-  if (lib.sessions.length) {
-    lib.sessions.forEach((s, i) => {
-      const dur = formatDuration(s.end - s.start);
-      const noiseB = s.noise ? '<span class="badge noise">noise</span>' : '<span class="badge clean">clean</span>';
-      const qualEmoji = ['','&#128078;','&#128076;','&#128170;'][s.quality || 0] || '';
-      html += '<div class="session-line"><span>' + dur + ' ' + qualEmoji + noiseB + '</span><span class="time">' + hhmm(new Date(s.start)) + ' - ' + hhmm(new Date(s.end)) + '</span></div>';
-    });
-  }
-
-  if (lib.active) {
-    // Active session
-    html += '<div class="lib-active"><div class="elapsed" id="libElapsed">' + formatDuration(Date.now() - lib.active) + '</div>'
-      + '<div class="since">since ' + hhmm(new Date(lib.active)) + '</div></div>'
-      + '<button class="big-btn stop" onclick="stopLibrary()">Done</button>';
-    startLibTimer();
-  } else {
-    html += '<button class="big-btn start" onclick="startLibrary()">I\'m at the library</button>';
-  }
-
-  el.innerHTML = html;
-}
-
-function startLibrary() {
-  const day = getDay();
-  day.library.active = Date.now();
-  save();
-  renderLibrary();
-}
-
-function stopLibrary() {
-  pendingSession = { noise: false, quality: 0 };
-  document.getElementById('libDoneModal').classList.remove('hidden');
-  // reset modal UI
-  updatePills('noisePills', 'false');
-  updateEmojis('qualityRow', 0);
-}
-
-function pickNoise(v) {
-  if (pendingSession) pendingSession.noise = v;
-  document.querySelectorAll('#noisePills .pill').forEach((p, i) => {
-    p.classList.toggle('active', (i === 0 && v) || (i === 1 && !v));
-  });
-}
-function pickQuality(v) {
-  if (pendingSession) pendingSession.quality = v;
-  updateEmojis('qualityRow', v);
-}
-
-function confirmLibDone() {
-  const day = getDay();
-  if (!day.library.active) { closeLibDone(); return; }
-  day.library.sessions.push({
-    start: day.library.active,
-    end: Date.now(),
-    noise: pendingSession ? pendingSession.noise : false,
-    quality: pendingSession ? pendingSession.quality : 0
-  });
-  day.library.active = null;
-  pendingSession = null;
-  save();
-  closeLibDone();
-  clearInterval(libTimer);
-  renderLibrary();
-}
-
-function closeLibDone() {
-  document.getElementById('libDoneModal').classList.add('hidden');
-}
-
-function startLibTimer() {
-  clearInterval(libTimer);
-  libTimer = setInterval(() => {
-    const day = getDay();
-    if (!day.library.active) { clearInterval(libTimer); return; }
-    const el = document.getElementById('libElapsed');
-    if (el) el.textContent = formatDuration(Date.now() - day.library.active);
-  }, 1000);
-}
-
-// ══════════════════════
-//  FOOD
-// ══════════════════════
-function renderFood() {
-  const day = getDay();
-  const list = document.getElementById('mealsList');
-  list.innerHTML = '';
-  day.food.meals.forEach((m, i) => {
-    const div = document.createElement('div');
-    div.className = 'meal-entry';
-    div.innerHTML = '<div class="meal-top"><span class="meal-time">' + m.time + '</span>'
-      + '<button class="meal-del" onclick="removeMeal(' + i + ')">&#10005;</button></div>'
-      + '<div class="field"><div class="pills">'
-      + ['Breakfast','Lunch','Dinner','Snack'].map(t =>
-          '<button class="pill' + (m.type === t ? ' active' : '') + '" onclick="setMealType(' + i + ',\'' + t + '\')">' + t + '</button>'
-        ).join('')
-      + '</div></div>'
-      + '<div class="field" style="margin-top:8px"><div class="pills">'
-      + '<button class="pill' + (m.planned ? ' active' : '') + '" onclick="setMealPlanned(' + i + ',true)">Planned</button>'
-      + '<button class="pill' + (!m.planned ? ' active' : '') + '" onclick="setMealPlanned(' + i + ',false)">Impulse</button>'
-      + '</div></div>';
-    list.appendChild(div);
-  });
-  document.getElementById('snackVal').textContent = day.food.snacks || 0;
-}
-
-function guessNextMealType() {
-  const h = new Date().getHours();
-  const day = getDay();
-  const types = day.food.meals.map(m => m.type);
-  if (h < 11 && !types.includes('Breakfast')) return 'Breakfast';
-  if (h < 15 && !types.includes('Lunch')) return 'Lunch';
-  if (h < 21 && !types.includes('Dinner')) return 'Dinner';
-  return 'Snack';
-}
-
-function addMeal() {
-  const day = getDay();
-  day.food.meals.push({ time: hhmm(new Date()), type: guessNextMealType(), planned: true });
-  save();
-  renderFood();
-}
-function removeMeal(i) {
-  getDay().food.meals.splice(i, 1);
-  save();
-  renderFood();
-}
-function setMealType(i, t) {
-  getDay().food.meals[i].type = t;
-  save();
-  renderFood();
-}
-function setMealPlanned(i, v) {
-  getDay().food.meals[i].planned = v;
-  save();
-  renderFood();
-}
-function changeSnacks(d) {
-  const day = getDay();
-  day.food.snacks = Math.max(0, Math.min(5, (day.food.snacks || 0) + d));
-  save();
-  document.getElementById('snackVal').textContent = day.food.snacks;
-}
-
-// ══════════════════════
 //  HISTORY
 // ══════════════════════
 function renderHistory() {
@@ -788,40 +536,40 @@ function renderStreaks() {
   const days = Object.keys(state.days).sort();
   const total = days.length;
 
-  // Library streak: consecutive days with >=1 session, counting back from today
-  let libStreak = 0;
-  const tk = todayKey();
+  // Anchors streak: consecutive days with all anchors done, counting back from today
+  let anchorStreak = 0;
+  const anchorList = state.settings.anchors || DEFAULT_ANCHORS;
   let cursor = new Date();
   while (true) {
     const k = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0') + '-' + String(cursor.getDate()).padStart(2,'0');
     const d = state.days[k];
-    if (d && d.library && d.library.sessions && d.library.sessions.length > 0) {
-      libStreak++;
+    if (d && d.anchors && anchorList.every(a => d.anchors[a])) {
+      anchorStreak++;
       cursor.setDate(cursor.getDate() - 1);
     } else {
       break;
     }
   }
 
-  // No-noise streak: consecutive sessions without noise (across all days, most recent first)
-  let noNoise = 0;
-  const allSessions = [];
-  days.forEach(k => {
+  // Bedtime streak: consecutive days with all bedtime items done
+  let bedtimeStreak = 0;
+  const btItems = getBedtimeItems();
+  cursor = new Date();
+  while (true) {
+    const k = cursor.getFullYear() + '-' + String(cursor.getMonth()+1).padStart(2,'0') + '-' + String(cursor.getDate()).padStart(2,'0');
     const d = state.days[k];
-    if (d && d.library && d.library.sessions) {
-      d.library.sessions.forEach(s => allSessions.push(s));
+    if (d && d.wake && d.wake.bedtimeChecklist && btItems.every(item => d.wake.bedtimeChecklist[item])) {
+      bedtimeStreak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
     }
-  });
-  allSessions.sort((a, b) => b.start - a.start);
-  for (const s of allSessions) {
-    if (!s.noise) noNoise++;
-    else break;
   }
 
   document.getElementById('streaksArea').innerHTML =
     '<div class="streak-box"><div class="num">' + total + '</div><div class="lbl">Days tracked</div></div>'
-    + '<div class="streak-box"><div class="num">' + libStreak + '</div><div class="lbl">Library streak</div></div>'
-    + '<div class="streak-box"><div class="num">' + noNoise + '</div><div class="lbl">No-noise sessions</div></div>';
+    + '<div class="streak-box"><div class="num">' + anchorStreak + '</div><div class="lbl">Anchors streak</div></div>'
+    + '<div class="streak-box"><div class="num">' + bedtimeStreak + '</div><div class="lbl">Bedtime streak</div></div>';
 }
 
 function dayCompleteness(k) {
@@ -833,10 +581,9 @@ function dayCompleteness(k) {
   // anchors
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
   total++; if (d.anchors && anchors.some(a => d.anchors[a])) filled++;
-  // library
-  total++; if (d.library && d.library.sessions && d.library.sessions.length) filled++;
-  // food
-  total++; if (d.food && d.food.meals && d.food.meals.length) filled++;
+  // bedtime
+  const btItems = getBedtimeItems();
+  total++; if (d.wake && d.wake.bedtimeChecklist && btItems.some(item => d.wake.bedtimeChecklist[item])) filled++;
   if (filled === total) return 'green';
   if (filled > 0) return 'yellow';
   return 'gray';
@@ -886,18 +633,6 @@ function renderDaySummary() {
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
   const done = anchors.filter(a => d.anchors && d.anchors[a]);
   if (done.length) rows += row('Anchors', done.length + '/' + anchors.length + ' — ' + done.join(', '));
-  // Library
-  if (d.library && d.library.sessions && d.library.sessions.length) {
-    const totalMs = d.library.sessions.reduce((s, x) => s + (x.end - x.start), 0);
-    const noisy = d.library.sessions.filter(x => x.noise).length;
-    rows += row('Library', d.library.sessions.length + ' session(s), ' + formatDuration(totalMs)
-      + (noisy ? ' (' + noisy + ' cut short by noise)' : ''));
-  }
-  // Food
-  if (d.food && d.food.meals && d.food.meals.length) {
-    const summary = d.food.meals.map(m => m.type + (m.planned ? '' : ' (impulse)')).join(', ');
-    rows += row('Meals', summary + (d.food.snacks ? ' | ' + d.food.snacks + ' snack attack(s)' : ''));
-  }
   if (!rows) rows = '<div style="color:var(--text-dim);padding:12px 0">No data for this day.</div>';
 
   el.innerHTML = '<div class="history-summary"><h3>' + k + '</h3>' + rows + '</div>';
@@ -1363,8 +1098,6 @@ function renderAll() {
   renderWake();
   renderAnchors();
   renderGoogleTasks();
-  renderLibrary();
-  renderFood();
   renderBedtime();
 }
 
