@@ -190,10 +190,6 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
         <label>Wake time</label>
         <input type="time" class="time-input" id="wakeTime" onchange="saveWake()">
       </div>
-      <div class="field">
-        <label>Bedtime Productivity</label>
-        <div id="bedtimeChecklist" class="checklist"></div>
-      </div>
     </div>
   </div>
 
@@ -248,6 +244,31 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
           <button onclick="changeSnacks(1)">+</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Bedtime Productivity -->
+  <div class="card" id="bedtimeCard">
+    <div class="card-head" onclick="toggleCard('bedtimeCard')">
+      <h2><span>&#127769;</span> Bedtime Productivity</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div id="bedtimeChecklist"></div>
+      <button class="big-btn start" style="margin-top:10px" onclick="openEditBedtime()">Edit items</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ EDIT BEDTIME CHECKLIST MODAL ════ -->
+<div id="editBedtimeModal" class="modal-overlay hidden" onclick="if(event.target===this)closeEditBedtime()">
+  <div class="modal">
+    <h3>Edit Bedtime Checklist</h3>
+    <div id="editBedtimeList"></div>
+    <div class="add-link" id="addBedtimeBtn" onclick="addBedtimeField()">+ Add item</div>
+    <div class="modal-actions">
+      <button class="cancel" onclick="closeEditBedtime()">Cancel</button>
+      <button class="save" onclick="saveBedtimeEdit()">Save</button>
     </div>
   </div>
 </div>
@@ -421,11 +442,15 @@ function formatDuration(ms) {
 // ══════════════════════
 //  WAKE UP
 // ══════════════════════
-const BEDTIME_CHECKLIST = ['Brushed teeth', 'No screens 30 min', 'Read', 'Stretched', 'Journaled'];
+const DEFAULT_BEDTIME = ['Brushed teeth', 'No screens 30 min', 'Read', 'Stretched', 'Journaled'];
+
+function getBedtimeItems() {
+  if (!state.settings.bedtimeItems) state.settings.bedtimeItems = [...DEFAULT_BEDTIME];
+  return state.settings.bedtimeItems;
+}
 
 function renderWake() {
   const day = getDay();
-  if (!day.wake.bedtimeChecklist) day.wake.bedtimeChecklist = {};
   const el = document.getElementById('wakeTime');
   if (day.wake.time) {
     el.value = day.wake.time;
@@ -434,20 +459,6 @@ function renderWake() {
     day.wake.time = el.value;
     save();
   }
-  const list = document.getElementById('bedtimeChecklist');
-  list.innerHTML = '';
-  BEDTIME_CHECKLIST.forEach(item => {
-    const checked = day.wake.bedtimeChecklist[item] || false;
-    const row = document.createElement('div');
-    row.className = 'check-row' + (checked ? ' checked' : '');
-    row.innerHTML = '<div class="checkbox">' + (checked ? '&#10003;' : '') + '</div><div class="label">' + esc(item) + '</div>';
-    row.onclick = () => {
-      day.wake.bedtimeChecklist[item] = !day.wake.bedtimeChecklist[item];
-      save();
-      renderWake();
-    };
-    list.appendChild(row);
-  });
 }
 
 function saveWake() {
@@ -540,6 +551,75 @@ function saveAnchorsEdit() {
   save();
   closeEditAnchors();
   renderAnchors();
+}
+
+// ══════════════════════
+//  BEDTIME PRODUCTIVITY
+// ══════════════════════
+function renderBedtime() {
+  const day = getDay();
+  if (!day.wake.bedtimeChecklist) day.wake.bedtimeChecklist = {};
+  const items = getBedtimeItems();
+  const list = document.getElementById('bedtimeChecklist');
+  list.innerHTML = '';
+  items.forEach(item => {
+    const checked = day.wake.bedtimeChecklist[item] || false;
+    const row = document.createElement('div');
+    row.className = 'check-row' + (checked ? ' checked' : '');
+    row.innerHTML = '<div class="checkbox">' + (checked ? '&#10003;' : '') + '</div><div class="label">' + esc(item) + '</div>';
+    row.onclick = () => {
+      day.wake.bedtimeChecklist[item] = !day.wake.bedtimeChecklist[item];
+      save();
+      renderBedtime();
+    };
+    list.appendChild(row);
+  });
+}
+
+// Edit bedtime checklist modal
+function openEditBedtime() {
+  document.getElementById('editBedtimeModal').classList.remove('hidden');
+  renderEditBedtime();
+}
+function closeEditBedtime() {
+  document.getElementById('editBedtimeModal').classList.add('hidden');
+}
+function renderEditBedtime() {
+  const list = document.getElementById('editBedtimeList');
+  const items = getBedtimeItems();
+  list.innerHTML = '';
+  items.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'modal-item';
+    row.innerHTML = '<input type="text" value="' + esc(a).replace(/"/g, '&quot;') + '" data-idx="' + i + '">'
+      + '<button class="del-anchor" onclick="removeBedtimeField(' + i + ')">&#10005;</button>';
+    list.appendChild(row);
+  });
+  document.getElementById('addBedtimeBtn').classList.toggle('hidden', items.length >= 10);
+}
+function addBedtimeField() {
+  const items = getBedtimeItems();
+  if (items.length >= 10) return;
+  items.push('');
+  renderEditBedtime();
+  const inputs = document.querySelectorAll('#editBedtimeList input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+function removeBedtimeField(i) {
+  getBedtimeItems().splice(i, 1);
+  renderEditBedtime();
+}
+function saveBedtimeEdit() {
+  const inputs = document.querySelectorAll('#editBedtimeList input');
+  const newItems = [];
+  inputs.forEach(inp => {
+    const v = inp.value.trim();
+    if (v) newItems.push(v);
+  });
+  state.settings.bedtimeItems = newItems.length ? newItems : [...DEFAULT_BEDTIME];
+  save();
+  closeEditBedtime();
+  renderBedtime();
 }
 
 // ══════════════════════
@@ -799,8 +879,8 @@ function renderDaySummary() {
     rows += row('Wake time', d.wake.time);
   }
   if (d.wake && d.wake.bedtimeChecklist) {
-    const btDone = BEDTIME_CHECKLIST.filter(item => d.wake.bedtimeChecklist[item]);
-    if (btDone.length) rows += row('Bedtime', btDone.length + '/' + BEDTIME_CHECKLIST.length + ' — ' + btDone.join(', '));
+    const btDone = getBedtimeItems().filter(item => d.wake.bedtimeChecklist[item]);
+    if (btDone.length) rows += row('Bedtime', btDone.length + '/' + getBedtimeItems().length + ' — ' + btDone.join(', '));
   }
   // Anchors
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
@@ -1285,6 +1365,7 @@ function renderAll() {
   renderGoogleTasks();
   renderLibrary();
   renderFood();
+  renderBedtime();
 }
 
 renderAll();
