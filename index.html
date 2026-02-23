@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Day Tracker</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -149,6 +151,17 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .gt-config-row button{min-height:var(--tap);padding:0 16px;border-radius:8px;background:var(--accent);color:var(--bg);font-weight:600;font-size:.85rem}
 .gt-refresh{font-size:.75rem;color:var(--accent);padding:4px 8px}
 
+/* ── SETTINGS MODAL ── */
+.gear-btn{font-size:1.3rem;color:var(--text-dim);padding:4px 8px;transition:color .15s}
+.gear-btn:hover{color:var(--accent)}
+.settings-btn{width:100%;min-height:var(--tap);border-radius:10px;background:var(--bg);border:1.5px solid var(--card-border);font-size:.9rem;color:var(--text);display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;margin-bottom:10px;transition:border-color .15s}
+.settings-btn:hover{border-color:var(--accent)}
+.settings-btn.danger{border-color:var(--red);color:var(--red)}
+.settings-btn.danger:hover{background:rgba(232,93,93,.1)}
+.import-label{display:flex;width:100%;min-height:var(--tap);border-radius:10px;background:var(--bg);border:1.5px solid var(--card-border);font-size:.9rem;color:var(--text);align-items:center;justify-content:center;gap:8px;padding:10px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+.import-label:hover{border-color:var(--accent)}
+.import-label input{display:none}
+
 .hidden{display:none!important}
 .view{display:none}
 .view.active{display:block}
@@ -160,7 +173,10 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 <div id="todayView" class="view active">
   <div class="header">
     <h1>Today</h1>
-    <div class="date" id="todayDate"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="date" id="todayDate"></div>
+      <button class="gear-btn" onclick="openSettings()" aria-label="Settings">&#9881;</button>
+    </div>
   </div>
 
   <!-- Wake Up -->
@@ -304,6 +320,49 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     </div>
     <div class="modal-actions" style="margin-top:18px">
       <button class="save" onclick="confirmLibDone()">Save session</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SETTINGS MODAL ════ -->
+<div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h3>Settings</h3>
+    <button class="settings-btn" onclick="exportData()">&#128230; Export Data</button>
+    <label class="import-label">
+      &#128229; Import Data
+      <input type="file" accept=".json,application/json" onchange="importData(event)">
+    </label>
+    <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:14px;line-height:1.5">
+      Export saves all your data as a JSON file.<br>Import replaces all current data.
+    </div>
+    <div style="border-top:1px solid var(--card-border);margin:14px 0;padding-top:14px">
+      <h3 style="font-size:.95rem;margin-bottom:12px">Bedtime Reminder</h3>
+      <div class="field">
+        <label>Enable</label>
+        <div class="pills" id="bedtimeEnablePills">
+          <button class="pill" onclick="setBedtimeEnabled(true)">On</button>
+          <button class="pill active" onclick="setBedtimeEnabled(false)">Off</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Bedtime</label>
+        <input type="time" class="time-input" id="bedtimeTime" value="22:30" onchange="saveBedtimeTime()">
+      </div>
+      <div class="field">
+        <label>Remind me</label>
+        <div class="pills" id="bedtimeOffsetPills">
+          <button class="pill active" onclick="setBedtimeOffset(0)">At bedtime</button>
+          <button class="pill" onclick="setBedtimeOffset(15)">15 min before</button>
+          <button class="pill" onclick="setBedtimeOffset(30)">30 min before</button>
+        </div>
+      </div>
+      <div class="field" id="bedtimePermField">
+        <button class="settings-btn" onclick="requestNotifPermission()">&#128276; Allow notifications</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel" onclick="closeSettings()">Close</button>
     </div>
   </div>
 </div>
@@ -1094,6 +1153,127 @@ if (typeof google !== 'undefined' && google.accounts) {
 }
 
 // ══════════════════════
+//  SETTINGS / EXPORT / IMPORT
+// ══════════════════════
+function openSettings() {
+  document.getElementById('settingsModal').classList.remove('hidden');
+  renderBedtimeUI();
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'daytracker-backup-' + todayKey() + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.days || !imported.settings) {
+        alert('Invalid backup file: missing days or settings.');
+        return;
+      }
+      if (!confirm('This will replace all current data. Continue?')) return;
+      state = imported;
+      save();
+      renderAll();
+      closeSettings();
+    } catch(err) {
+      alert('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ══════════════════════
+//  BEDTIME REMINDER
+// ══════════════════════
+let lastBedtimeNotifDate = null;
+
+function getBedtimeSettings() {
+  if (!state.settings.bedtime) {
+    state.settings.bedtime = { enabled: false, time: '22:30', offset: 0 };
+  }
+  return state.settings.bedtime;
+}
+
+function setBedtimeEnabled(v) {
+  getBedtimeSettings().enabled = v;
+  save();
+  renderBedtimeUI();
+}
+
+function saveBedtimeTime() {
+  getBedtimeSettings().time = document.getElementById('bedtimeTime').value;
+  save();
+}
+
+function setBedtimeOffset(v) {
+  getBedtimeSettings().offset = v;
+  save();
+  renderBedtimeUI();
+}
+
+function renderBedtimeUI() {
+  const b = getBedtimeSettings();
+  // Enable pills
+  const pills = document.getElementById('bedtimeEnablePills').querySelectorAll('.pill');
+  pills[0].classList.toggle('active', b.enabled);
+  pills[1].classList.toggle('active', !b.enabled);
+  // Time
+  document.getElementById('bedtimeTime').value = b.time;
+  // Offset pills
+  const offPills = document.getElementById('bedtimeOffsetPills').querySelectorAll('.pill');
+  offPills[0].classList.toggle('active', b.offset === 0);
+  offPills[1].classList.toggle('active', b.offset === 15);
+  offPills[2].classList.toggle('active', b.offset === 30);
+  // Permission button
+  const permField = document.getElementById('bedtimePermField');
+  if (typeof Notification === 'undefined' || Notification.permission !== 'default') {
+    permField.classList.add('hidden');
+  } else {
+    permField.classList.remove('hidden');
+  }
+}
+
+function requestNotifPermission() {
+  if (typeof Notification === 'undefined') return;
+  Notification.requestPermission().then(() => renderBedtimeUI());
+}
+
+function checkBedtimeReminder() {
+  const b = getBedtimeSettings();
+  if (!b.enabled) return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const today = todayKey();
+  if (lastBedtimeNotifDate === today) return;
+  const [bh, bm] = b.time.split(':').map(Number);
+  let targetMin = bh * 60 + bm - b.offset;
+  if (targetMin < 0) targetMin += 1440;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (nowMin >= targetMin && nowMin < targetMin + 5) {
+    lastBedtimeNotifDate = today;
+    const label = b.offset > 0 ? b.offset + ' minutes until bedtime' : 'Time for bed!';
+    new Notification('Day Tracker', { body: label, icon: 'icon.svg' });
+  }
+}
+
+setInterval(checkBedtimeReminder, 60000);
+
+// ══════════════════════
 //  INIT
 // ══════════════════════
 function renderAll() {
@@ -1109,6 +1289,11 @@ function renderAll() {
 }
 
 renderAll();
+
+// ── PWA Service Worker ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
 </script>
 </body>
 </html>
