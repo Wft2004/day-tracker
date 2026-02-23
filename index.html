@@ -191,22 +191,8 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
         <input type="time" class="time-input" id="wakeTime" onchange="saveWake()">
       </div>
       <div class="field">
-        <label>Snoozed?</label>
-        <div class="pills" id="snoozePills">
-          <button class="pill" onclick="pickSnooze('no')">No</button>
-          <button class="pill" onclick="pickSnooze('once')">Once</button>
-          <button class="pill" onclick="pickSnooze('2+')">2+</button>
-        </div>
-      </div>
-      <div class="field">
-        <label>Difficulty</label>
-        <div class="emoji-row" id="difficultyRow">
-          <button class="emoji-btn" onclick="pickDifficulty(1)">&#128522;</button>
-          <button class="emoji-btn" onclick="pickDifficulty(2)">&#128578;</button>
-          <button class="emoji-btn" onclick="pickDifficulty(3)">&#128528;</button>
-          <button class="emoji-btn" onclick="pickDifficulty(4)">&#128553;</button>
-          <button class="emoji-btn" onclick="pickDifficulty(5)">&#128565;</button>
-        </div>
+        <label>Bedtime Productivity</label>
+        <div id="bedtimeChecklist" class="checklist"></div>
       </div>
     </div>
   </div>
@@ -435,8 +421,11 @@ function formatDuration(ms) {
 // ══════════════════════
 //  WAKE UP
 // ══════════════════════
+const BEDTIME_CHECKLIST = ['Brushed teeth', 'No screens 30 min', 'Read', 'Stretched', 'Journaled'];
+
 function renderWake() {
   const day = getDay();
+  if (!day.wake.bedtimeChecklist) day.wake.bedtimeChecklist = {};
   const el = document.getElementById('wakeTime');
   if (day.wake.time) {
     el.value = day.wake.time;
@@ -445,28 +434,29 @@ function renderWake() {
     day.wake.time = el.value;
     save();
   }
-  updatePills('snoozePills', day.wake.snooze);
-  updateEmojis('difficultyRow', day.wake.difficulty);
+  const list = document.getElementById('bedtimeChecklist');
+  list.innerHTML = '';
+  BEDTIME_CHECKLIST.forEach(item => {
+    const checked = day.wake.bedtimeChecklist[item] || false;
+    const row = document.createElement('div');
+    row.className = 'check-row' + (checked ? ' checked' : '');
+    row.innerHTML = '<div class="checkbox">' + (checked ? '&#10003;' : '') + '</div><div class="label">' + esc(item) + '</div>';
+    row.onclick = () => {
+      day.wake.bedtimeChecklist[item] = !day.wake.bedtimeChecklist[item];
+      save();
+      renderWake();
+    };
+    list.appendChild(row);
+  });
 }
 
 function saveWake() {
   getDay().wake.time = document.getElementById('wakeTime').value;
   save();
 }
-function pickSnooze(v) {
-  getDay().wake.snooze = v;
-  updatePills('snoozePills', v);
-  save();
-}
-function pickDifficulty(v) {
-  getDay().wake.difficulty = v;
-  updateEmojis('difficultyRow', v);
-  save();
-}
-
 function updatePills(containerId, activeVal) {
   const pills = document.getElementById(containerId).querySelectorAll('.pill');
-  const vals = { 'snoozePills': ['no','once','2+'], 'noisePills': ['true','false'] };
+  const vals = { 'noisePills': ['true','false'] };
   const mapping = vals[containerId] || [];
   pills.forEach((p, i) => {
     const myVal = mapping[i] || p.textContent.trim().toLowerCase();
@@ -806,8 +796,11 @@ function renderDaySummary() {
   let rows = '';
   // Wake
   if (d.wake && d.wake.time) {
-    const diffEmoji = ['','&#128522;','&#128578;','&#128528;','&#128553;','&#128565;'][d.wake.difficulty || 0] || '';
-    rows += row('Wake time', d.wake.time + (d.wake.snooze ? ' (snoozed: ' + d.wake.snooze + ')' : '') + ' ' + diffEmoji);
+    rows += row('Wake time', d.wake.time);
+  }
+  if (d.wake && d.wake.bedtimeChecklist) {
+    const btDone = BEDTIME_CHECKLIST.filter(item => d.wake.bedtimeChecklist[item]);
+    if (btDone.length) rows += row('Bedtime', btDone.length + '/' + BEDTIME_CHECKLIST.length + ' — ' + btDone.join(', '));
   }
   // Anchors
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
