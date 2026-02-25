@@ -28,7 +28,7 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--card-border);z-index:100;padding:6px 0 env(safe-area-inset-bottom,6px)}
 .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;font-size:.7rem;color:var(--text-dim);transition:color .15s}
 .nav button.active{color:var(--accent)}
-.nav button .icon{font-size:1.4rem}
+.nav-ic{width:20px;height:20px}
 
 /* ── HEADER ── */
 .header{padding:16px 16px 8px;display:flex;justify-content:space-between;align-items:center}
@@ -39,6 +39,9 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);margin:10px 14px;box-shadow:var(--shadow);overflow:hidden}
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;min-height:var(--tap);cursor:pointer;-webkit-user-select:none;user-select:none}
 .card-head h2{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.ic{width:18px;height:18px;color:var(--text-dim);flex-shrink:0}
+.wake-compact{padding:10px 16px}
+.wake-time-inline{padding:6px 10px;font-size:.9rem;min-height:36px;width:auto}
 .card-head .chevron{font-size:.75rem;color:var(--text-dim);transition:transform .2s}
 .card.collapsed .card-body{display:none}
 .card.collapsed .chevron{transform:rotate(-90deg)}
@@ -188,7 +191,7 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     <h1>Today</h1>
     <div style="display:flex;align-items:center;gap:10px">
       <div class="date" id="todayDate"></div>
-      <button class="gear-btn" onclick="openSettings()" aria-label="Settings">&#9881;</button>
+      <button class="gear-btn" onclick="openSettings()" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     </div>
   </div>
 
@@ -196,22 +199,16 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 
   <!-- Wake Up -->
   <div class="card" id="wakeCard">
-    <div class="card-head" onclick="toggleCard('wakeCard')">
-      <h2><span>&#9728;&#65039;</span> Wake Up</h2>
-      <span class="chevron">&#9660;</span>
-    </div>
-    <div class="card-body">
-      <div class="field">
-        <label>Wake time</label>
-        <input type="time" class="time-input" id="wakeTime" onchange="saveWake()">
-      </div>
+    <div class="card-head wake-compact">
+      <h2><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Wake Up</h2>
+      <input type="time" class="time-input wake-time-inline" id="wakeTime" onchange="saveWake()">
     </div>
   </div>
 
   <!-- Daily Anchors -->
   <div class="card" id="anchorsCard">
     <div class="card-head" onclick="toggleCard('anchorsCard')">
-      <h2><span>&#9989;</span> Daily Anchors</h2>
+      <h2><svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Daily Anchors</h2>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="card-body">
@@ -223,7 +220,7 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   <!-- Google Tasks -->
   <div class="card" id="tasksCard">
     <div class="card-head" onclick="toggleCard('tasksCard')">
-      <h2><span>&#128203;</span> Google Tasks</h2>
+      <h2><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Google Tasks</h2>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="card-body">
@@ -234,7 +231,7 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   <!-- Midday Check-in -->
   <div class="card" id="middayCard">
     <div class="card-head" onclick="toggleCard('middayCard')">
-      <h2><span>&#9728;</span> Midday Check-in</h2>
+      <h2><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Midday Check-in</h2>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="card-body">
@@ -278,7 +275,7 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   <!-- Bedtime Productivity -->
   <div class="card" id="bedtimeCard">
     <div class="card-head" onclick="toggleCard('bedtimeCard')">
-      <h2><span>&#127769;</span> Bedtime Productivity</h2>
+      <h2><svg class="ic" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Bedtime Productivity</h2>
       <span class="chevron">&#9660;</span>
     </div>
     <div class="card-body">
@@ -322,13 +319,13 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 <!-- ════ BOTTOM NAV ════ -->
 <nav class="nav">
   <button class="active" id="navToday" onclick="switchView('today')">
-    <span class="icon">&#128197;</span>Today
+    <svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Today
   </button>
   <button id="navHistory" onclick="switchView('history')">
-    <span class="icon">&#128200;</span>History
+    <svg class="nav-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>History
   </button>
   <button id="navWeekly" onclick="switchView('weekly')">
-    <span class="icon">&#128202;</span>Weekly
+    <svg class="nav-ic" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Weekly
   </button>
 </nav>
 
@@ -350,9 +347,9 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 <div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
   <div class="modal">
     <h3>Settings</h3>
-    <button class="settings-btn" onclick="exportData()">&#128230; Export Data</button>
+    <button class="settings-btn" onclick="exportData()">Export Data</button>
     <label class="import-label">
-      &#128229; Import Data
+      Import Data
       <input type="file" accept=".json,application/json" onchange="importData(event)">
     </label>
     <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:14px;line-height:1.5">
