@@ -100,6 +100,21 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .summary-row:last-child{border-bottom:none}
 .summary-row .k{color:var(--text-dim)}
 
+/* ── WEEKLY REVIEW ── */
+.weekly-section{margin:0 14px 14px;background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px}
+.weekly-section h3{font-size:.9rem;margin-bottom:10px;color:var(--text-bright)}
+.weekly-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.82rem}
+.weekly-bar-row .bar-label{min-width:70px;color:var(--text-dim)}
+.weekly-bar-row .bar-track{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden}
+.weekly-bar-row .bar-fill{height:100%;border-radius:7px;transition:width .3s}
+.weekly-bar-row .bar-val{min-width:36px;text-align:right;color:var(--text-dim);font-size:.75rem}
+.weekly-trend{display:flex;gap:6px;align-items:flex-end;height:60px;margin:8px 0}
+.weekly-trend .trend-bar{flex:1;border-radius:4px 4px 0 0;min-width:0;position:relative}
+.weekly-trend .trend-label{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:.6rem;color:var(--text-dim)}
+.weekly-insight{font-size:.85rem;color:var(--text);padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.weekly-insight:last-child{border-bottom:none}
+.weekly-insight .wi-label{color:var(--text-dim);font-size:.75rem;text-transform:uppercase;letter-spacing:.3px}
+
 /* ── EDIT ANCHORS MODAL ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center}
 .modal{background:var(--card);border-radius:var(--radius) var(--radius) 0 0;width:100%;max-width:500px;max-height:80dvh;overflow-y:auto;padding:20px 16px env(safe-area-inset-bottom,16px)}
@@ -234,6 +249,16 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
         <label>Gratitude / Win</label>
         <input type="text" class="time-input" id="gratitudeWin" placeholder="One thing that went well today" oninput="saveMiddayText()" style="width:100%;box-sizing:border-box">
       </div>
+      <div class="field">
+        <label>Unproductive Screen Time</label>
+        <div class="pills" id="screenTimePills">
+          <button class="pill" onclick="pickScreenTime('0')">0h</button>
+          <button class="pill" onclick="pickScreenTime('1')">1h</button>
+          <button class="pill" onclick="pickScreenTime('2')">2h</button>
+          <button class="pill" onclick="pickScreenTime('3')">3h</button>
+          <button class="pill" onclick="pickScreenTime('4+')">4+h</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -273,6 +298,14 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   <div id="historySummary"></div>
 </div>
 
+<!-- ════ WEEKLY REVIEW VIEW ════ -->
+<div id="weeklyView" class="view">
+  <div class="header">
+    <h1>Weekly Review</h1>
+  </div>
+  <div id="weeklyContent"></div>
+</div>
+
 <!-- ════ BOTTOM NAV ════ -->
 <nav class="nav">
   <button class="active" id="navToday" onclick="switchView('today')">
@@ -280,6 +313,9 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
   </button>
   <button id="navHistory" onclick="switchView('history')">
     <span class="icon">&#128200;</span>History
+  </button>
+  <button id="navWeekly" onclick="switchView('weekly')">
+    <span class="icon">&#128202;</span>Weekly
   </button>
 </nav>
 
@@ -329,6 +365,14 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
       </div>
       <div id="bedtimeSetupGuide"></div>
     </div>
+    <div style="border-top:1px solid var(--card-border);margin:14px 0;padding-top:14px">
+      <h3 style="font-size:.95rem;margin-bottom:12px">Afternoon Reset Reminder</h3>
+      <div class="field">
+        <label>Reminder time</label>
+        <input type="time" class="time-input" id="afternoonTime" value="14:00" onchange="saveAfternoonTime()">
+      </div>
+      <div id="afternoonSetupGuide"></div>
+    </div>
     <div class="modal-actions">
       <button class="cancel" onclick="closeSettings()">Close</button>
     </div>
@@ -366,7 +410,7 @@ function getDay(key) {
     state.days[key] = {
       wake: { time: '' },
       anchors: {},
-      midday: { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '' }
+      midday: { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '', screenTime: '' }
     };
   }
   return state.days[key];
@@ -376,9 +420,12 @@ function getDay(key) {
 function switchView(v) {
   document.getElementById('todayView').classList.toggle('active', v === 'today');
   document.getElementById('historyView').classList.toggle('active', v === 'history');
+  document.getElementById('weeklyView').classList.toggle('active', v === 'weekly');
   document.getElementById('navToday').classList.toggle('active', v === 'today');
   document.getElementById('navHistory').classList.toggle('active', v === 'history');
+  document.getElementById('navWeekly').classList.toggle('active', v === 'weekly');
   if (v === 'history') renderHistory();
+  if (v === 'weekly') renderWeekly();
 }
 
 // ── Card collapse ──
@@ -499,11 +546,12 @@ function saveAnchorsEdit() {
 function getMidday() {
   const day = getDay();
   if (!day.midday) {
-    day.midday = { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '' };
+    day.midday = { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '', screenTime: '' };
   }
   if (!day.midday.priorities || day.midday.priorities.length < 3) {
     day.midday.priorities = [{text:'',done:false},{text:'',done:false},{text:'',done:false}];
   }
+  if (day.midday.screenTime === undefined) day.midday.screenTime = '';
   return day.midday;
 }
 
@@ -528,6 +576,9 @@ function renderMidday() {
   document.getElementById('timeWaster').value = m.timeWaster || '';
   document.getElementById('intentionReset').value = m.intention || '';
   document.getElementById('gratitudeWin').value = m.gratitude || '';
+  // Screen time pills
+  const stPills = document.getElementById('screenTimePills').querySelectorAll('.pill');
+  ['0','1','2','3','4+'].forEach((v, i) => stPills[i].classList.toggle('active', m.screenTime === v));
 }
 
 function togglePriority(i) {
@@ -544,6 +595,12 @@ function savePriorityText(i, val) {
 
 function pickEnergy(v) {
   getMidday().energy = v;
+  save();
+  renderMidday();
+}
+
+function pickScreenTime(v) {
+  getMidday().screenTime = v;
   save();
   renderMidday();
 }
@@ -745,6 +802,7 @@ function renderDaySummary() {
     if (d.midday.timeWaster) rows += row('Time waster', esc(d.midday.timeWaster));
     if (d.midday.intention) rows += row('Intention', esc(d.midday.intention));
     if (d.midday.gratitude) rows += row('Gratitude', esc(d.midday.gratitude));
+    if (d.midday.screenTime) rows += row('Screen time', d.midday.screenTime + 'h unproductive');
   }
   if (!rows) rows = '<div style="color:var(--text-dim);padding:12px 0">No data for this day.</div>';
 
@@ -753,6 +811,156 @@ function renderDaySummary() {
 
 function row(k, v) {
   return '<div class="summary-row"><span class="k">' + k + '</span><span>' + v + '</span></div>';
+}
+
+// ══════════════════════
+//  WEEKLY REVIEW
+// ══════════════════════
+function getWeekKeys() {
+  const keys = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    keys.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'));
+  }
+  return keys;
+}
+
+function renderWeekly() {
+  const keys = getWeekKeys();
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const el = document.getElementById('weeklyContent');
+  let html = '';
+
+  // Gather data
+  const anchorList = state.settings.anchors || DEFAULT_ANCHORS;
+  const btItems = getBedtimeItems();
+  const energyMap = { low: 1, medium: 2, high: 3 };
+  const screenMap = { '0': 0, '1': 1, '2': 2, '3': 3, '4+': 4 };
+
+  let anchorTotals = 0, anchorDone = 0;
+  let btTotals = 0, btDone = 0;
+  let priTotals = 0, priDone = 0;
+  const energies = [];
+  const screenTimes = [];
+  const wasters = {};
+  let bestDay = null, bestScore = -1, worstDay = null, worstScore = 999;
+
+  keys.forEach(k => {
+    const d = state.days[k];
+    if (!d) return;
+    let score = 0, possible = 0;
+
+    // Anchors
+    anchorList.forEach(a => {
+      anchorTotals++;
+      if (d.anchors && d.anchors[a]) { anchorDone++; score++; }
+      possible++;
+    });
+
+    // Bedtime
+    btItems.forEach(item => {
+      btTotals++;
+      if (d.wake && d.wake.bedtimeChecklist && d.wake.bedtimeChecklist[item]) { btDone++; score++; }
+      possible++;
+    });
+
+    // Priorities
+    if (d.midday && d.midday.priorities) {
+      d.midday.priorities.forEach(p => {
+        if (p.text) { priTotals++; if (p.done) { priDone++; score++; } possible++; }
+      });
+    }
+
+    // Energy
+    if (d.midday && d.midday.energy && energyMap[d.midday.energy]) {
+      energies.push({ key: k, val: energyMap[d.midday.energy] });
+    }
+
+    // Screen time
+    if (d.midday && d.midday.screenTime !== undefined && d.midday.screenTime !== '') {
+      screenTimes.push(screenMap[d.midday.screenTime] || 0);
+    }
+
+    // Time wasters
+    if (d.midday && d.midday.timeWaster) {
+      const w = d.midday.timeWaster.trim().toLowerCase();
+      if (w) wasters[w] = (wasters[w] || 0) + 1;
+    }
+
+    // Best/worst
+    const pct = possible > 0 ? score / possible : 0;
+    if (pct > bestScore) { bestScore = pct; bestDay = k; }
+    if (pct < worstScore) { worstScore = pct; worstDay = k; }
+  });
+
+  // ── Energy trend ──
+  html += '<div class="weekly-section"><h3>Energy Trend</h3>';
+  if (energies.length === 0) {
+    html += '<div style="color:var(--text-dim);font-size:.85rem">No energy data this week.</div>';
+  } else {
+    html += '<div class="weekly-trend">';
+    keys.forEach(k => {
+      const dt = new Date(k + 'T00:00:00');
+      const label = dayNames[dt.getDay()];
+      const e = energies.find(x => x.key === k);
+      const h = e ? (e.val / 3 * 100) : 0;
+      const colors = { 1: 'var(--red)', 2: 'var(--amber)', 3: 'var(--green)' };
+      const bg = e ? colors[e.val] : '#333';
+      html += '<div class="trend-bar" style="height:' + Math.max(h, 8) + '%;background:' + bg + '"><span class="trend-label">' + label + '</span></div>';
+    });
+    html += '</div><div style="height:18px"></div>';
+  }
+  html += '</div>';
+
+  // ── Completion rates ──
+  html += '<div class="weekly-section"><h3>Completion Rates</h3>';
+  const anchorPct = anchorTotals ? Math.round(anchorDone / anchorTotals * 100) : 0;
+  const btPct = btTotals ? Math.round(btDone / btTotals * 100) : 0;
+  const priPct = priTotals ? Math.round(priDone / priTotals * 100) : 0;
+
+  function barRow(label, pct, color) {
+    return '<div class="weekly-bar-row"><span class="bar-label">' + label + '</span>'
+      + '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>'
+      + '<span class="bar-val">' + pct + '%</span></div>';
+  }
+  html += barRow('Anchors', anchorPct, 'var(--accent)');
+  html += barRow('Bedtime', btPct, 'var(--green)');
+  html += barRow('Priorities', priPct, 'var(--amber)');
+  html += '</div>';
+
+  // ── Screen time ──
+  if (screenTimes.length) {
+    const avg = (screenTimes.reduce((a, b) => a + b, 0) / screenTimes.length).toFixed(1);
+    html += '<div class="weekly-section"><h3>Avg Unproductive Screen Time</h3>';
+    html += '<div style="font-size:1.8rem;font-weight:700;color:' + (avg >= 3 ? 'var(--red)' : avg >= 2 ? 'var(--amber)' : 'var(--green)') + '">' + avg + 'h</div>';
+    html += '<div style="font-size:.75rem;color:var(--text-dim)">per day this week</div></div>';
+  }
+
+  // ── Common time wasters ──
+  const sortedWasters = Object.entries(wasters).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (sortedWasters.length) {
+    html += '<div class="weekly-section"><h3>Common Time Wasters</h3>';
+    sortedWasters.forEach(([w, count]) => {
+      html += '<div class="weekly-insight"><div class="wi-label">' + count + 'x this week</div>' + esc(w) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ── Best / Worst day ──
+  html += '<div class="weekly-section"><h3>Best &amp; Worst Days</h3>';
+  if (bestDay) {
+    const bd = new Date(bestDay + 'T00:00:00');
+    html += '<div class="weekly-insight"><div class="wi-label">Best day</div>' + dayNames[bd.getDay()] + ' ' + bd.getDate() + ' — ' + Math.round(bestScore * 100) + '% complete</div>';
+  }
+  if (worstDay && worstDay !== bestDay) {
+    const wd = new Date(worstDay + 'T00:00:00');
+    html += '<div class="weekly-insight"><div class="wi-label">Worst day</div>' + dayNames[wd.getDay()] + ' ' + wd.getDate() + ' — ' + Math.round(worstScore * 100) + '% complete</div>';
+  }
+  html += '</div>';
+
+  el.innerHTML = html;
 }
 
 // ══════════════════════
@@ -1074,6 +1282,7 @@ if (typeof google !== 'undefined' && google.accounts) {
 function openSettings() {
   document.getElementById('settingsModal').classList.remove('hidden');
   renderBedtimeUI();
+  renderAfternoonUI();
 }
 function closeSettings() {
   document.getElementById('settingsModal').classList.add('hidden');
@@ -1196,6 +1405,60 @@ function renderBedtimeUI() {
 function copyBedtimeCron() {
   navigator.clipboard.writeText(bedtimeCron()).then(function() {
     var btn = document.querySelector('#bedtimeSetupGuide button');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy'; }, 1500); }
+  });
+}
+
+// ══════════════════════
+//  AFTERNOON RESET REMINDER
+// ══════════════════════
+function getAfternoonSettings() {
+  if (!state.settings.afternoon) {
+    state.settings.afternoon = { time: '14:00' };
+  }
+  return state.settings.afternoon;
+}
+
+function saveAfternoonTime() {
+  getAfternoonSettings().time = document.getElementById('afternoonTime').value;
+  save();
+  renderAfternoonUI();
+}
+
+function afternoonCron() {
+  const a = getAfternoonSettings();
+  const [h, m] = a.time.split(':').map(Number);
+  return m + ' ' + h + ' * * *';
+}
+
+function renderAfternoonUI() {
+  const a = getAfternoonSettings();
+  document.getElementById('afternoonTime').value = a.time;
+  const guide = document.getElementById('afternoonSetupGuide');
+  const b = getBedtimeSettings();
+  if (!b.ntfyTopic) {
+    guide.innerHTML = '<div style="font-size:.75rem;color:var(--text-dim);margin-top:8px">Set an ntfy topic in Bedtime Reminder above first.</div>';
+    return;
+  }
+  const cron = afternoonCron();
+  const ntfyUrl = 'https://ntfy.sh/' + esc(b.ntfyTopic);
+  guide.innerHTML =
+    '<div style="margin-top:14px;padding:12px;background:var(--bg);border:1.5px solid var(--card-border);border-radius:10px;font-size:.82rem;line-height:1.6">' +
+      '<strong style="color:var(--text-bright)">Cron job setup</strong><br>' +
+      '<span style="color:var(--text-dim)">Create a second cron job at <a href="https://cron-job.org" target="_blank" style="color:var(--accent)">cron-job.org</a>:</span><br>' +
+      '<div style="margin:8px 0 4px;padding:8px 10px;background:var(--card-bg);border-radius:8px;font-family:monospace;font-size:.78rem;word-break:break-all">' +
+        '<div style="color:var(--text-dim)">URL: <span style="color:var(--text-bright)">' + ntfyUrl + '</span></div>' +
+        '<div style="color:var(--text-dim)">Method: <span style="color:var(--text-bright)">POST</span></div>' +
+        '<div style="color:var(--text-dim)">Body: <span style="color:var(--text-bright)">Afternoon reset \u2014 open your midday check-in!</span></div>' +
+        '<div style="color:var(--text-dim)">Schedule: <span id="afternoonCronExpr" style="color:var(--text-bright)">' + esc(cron) + '</span>' +
+          ' <button onclick="copyAfternoonCron()" style="background:none;border:1px solid var(--card-border);border-radius:4px;color:var(--accent);font-size:.72rem;padding:2px 8px;margin-left:6px;cursor:pointer">Copy</button></span></div>' +
+      '</div>' +
+    '</div>';
+}
+
+function copyAfternoonCron() {
+  navigator.clipboard.writeText(afternoonCron()).then(function() {
+    var btn = document.querySelector('#afternoonSetupGuide button');
     if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy'; }, 1500); }
   });
 }
