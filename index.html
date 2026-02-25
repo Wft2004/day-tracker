@@ -62,6 +62,12 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
 .check-row .label{font-size:.95rem;flex:1}
 .check-row.checked .label{color:var(--text-dim);text-decoration:line-through}
 
+/* ── PRIORITY ROW ── */
+.priority-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.priority-row .checkbox{cursor:pointer}
+.priority-row input[type="text"]{flex:1;background:var(--bg);border:1.5px solid var(--card-border);border-radius:8px;padding:8px 10px;font-size:.9rem;color:var(--text-bright);min-height:var(--tap);box-sizing:border-box}
+.priority-row.checked input[type="text"]{color:var(--text-dim);text-decoration:line-through}
+
 /* ── TIME INPUT ── */
 .time-input{background:var(--bg);border:1.5px solid var(--card-border);border-radius:10px;padding:10px 14px;font-size:1rem;color:var(--text-bright);min-height:var(--tap)}
 
@@ -197,6 +203,40 @@ button{cursor:pointer;-webkit-user-select:none;user-select:none}
     </div>
   </div>
 
+  <!-- Midday Check-in -->
+  <div class="card" id="middayCard">
+    <div class="card-head" onclick="toggleCard('middayCard')">
+      <h2><span>&#9728;</span> Midday Check-in</h2>
+      <span class="chevron">&#9660;</span>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Top 3 Priorities</label>
+        <div id="prioritiesList"></div>
+      </div>
+      <div class="field">
+        <label>Energy Level</label>
+        <div class="pills" id="energyPills">
+          <button class="pill" onclick="pickEnergy('low')">Low</button>
+          <button class="pill" onclick="pickEnergy('medium')">Medium</button>
+          <button class="pill" onclick="pickEnergy('high')">High</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Biggest Time Waster</label>
+        <input type="text" class="time-input" id="timeWaster" placeholder="What pulled you off track?" oninput="saveMiddayText()" style="width:100%;box-sizing:border-box">
+      </div>
+      <div class="field">
+        <label>Intention Reset</label>
+        <input type="text" class="time-input" id="intentionReset" placeholder="What am I focusing on now?" oninput="saveMiddayText()" style="width:100%;box-sizing:border-box">
+      </div>
+      <div class="field">
+        <label>Gratitude / Win</label>
+        <input type="text" class="time-input" id="gratitudeWin" placeholder="One thing that went well today" oninput="saveMiddayText()" style="width:100%;box-sizing:border-box">
+      </div>
+    </div>
+  </div>
+
   <!-- Bedtime Productivity -->
   <div class="card" id="bedtimeCard">
     <div class="card-head" onclick="toggleCard('bedtimeCard')">
@@ -324,10 +364,9 @@ function getDay(key) {
   if (!key) key = todayKey();
   if (!state.days[key]) {
     state.days[key] = {
-      wake: { time: '', snooze: '', difficulty: 0 },
+      wake: { time: '' },
       anchors: {},
-      library: { sessions: [], active: null },
-      food: { meals: [], snacks: 0 }
+      midday: { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '' }
     };
   }
   return state.days[key];
@@ -452,6 +491,69 @@ function saveAnchorsEdit() {
   save();
   closeEditAnchors();
   renderAnchors();
+}
+
+// ══════════════════════
+//  MIDDAY CHECK-IN
+// ══════════════════════
+function getMidday() {
+  const day = getDay();
+  if (!day.midday) {
+    day.midday = { priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}], energy: '', timeWaster: '', intention: '', gratitude: '' };
+  }
+  if (!day.midday.priorities || day.midday.priorities.length < 3) {
+    day.midday.priorities = [{text:'',done:false},{text:'',done:false},{text:'',done:false}];
+  }
+  return day.midday;
+}
+
+function renderMidday() {
+  const m = getMidday();
+  // Priorities
+  const list = document.getElementById('prioritiesList');
+  list.innerHTML = '';
+  m.priorities.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'priority-row' + (p.done ? ' checked' : '');
+    row.innerHTML = '<div class="checkbox" onclick="togglePriority(' + i + ')">' + (p.done ? '&#10003;' : '') + '</div>'
+      + '<input type="text" value="' + esc(p.text).replace(/"/g, '&quot;') + '" placeholder="Priority ' + (i+1) + '" oninput="savePriorityText(' + i + ',this.value)">';
+    list.appendChild(row);
+  });
+  // Energy pills
+  const pills = document.getElementById('energyPills').querySelectorAll('.pill');
+  pills[0].classList.toggle('active', m.energy === 'low');
+  pills[1].classList.toggle('active', m.energy === 'medium');
+  pills[2].classList.toggle('active', m.energy === 'high');
+  // Text fields
+  document.getElementById('timeWaster').value = m.timeWaster || '';
+  document.getElementById('intentionReset').value = m.intention || '';
+  document.getElementById('gratitudeWin').value = m.gratitude || '';
+}
+
+function togglePriority(i) {
+  const m = getMidday();
+  m.priorities[i].done = !m.priorities[i].done;
+  save();
+  renderMidday();
+}
+
+function savePriorityText(i, val) {
+  getMidday().priorities[i].text = val;
+  save();
+}
+
+function pickEnergy(v) {
+  getMidday().energy = v;
+  save();
+  renderMidday();
+}
+
+function saveMiddayText() {
+  const m = getMidday();
+  m.timeWaster = document.getElementById('timeWaster').value;
+  m.intention = document.getElementById('intentionReset').value;
+  m.gratitude = document.getElementById('gratitudeWin').value;
+  save();
 }
 
 // ══════════════════════
@@ -581,6 +683,8 @@ function dayCompleteness(k) {
   // anchors
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
   total++; if (d.anchors && anchors.some(a => d.anchors[a])) filled++;
+  // midday
+  total++; if (d.midday && d.midday.priorities && d.midday.priorities.some(p => p.done)) filled++;
   // bedtime
   const btItems = getBedtimeItems();
   total++; if (d.wake && d.wake.bedtimeChecklist && btItems.some(item => d.wake.bedtimeChecklist[item])) filled++;
@@ -633,6 +737,15 @@ function renderDaySummary() {
   const anchors = state.settings.anchors || DEFAULT_ANCHORS;
   const done = anchors.filter(a => d.anchors && d.anchors[a]);
   if (done.length) rows += row('Anchors', done.length + '/' + anchors.length + ' — ' + done.join(', '));
+  // Midday
+  if (d.midday) {
+    const prDone = (d.midday.priorities || []).filter(p => p.done && p.text);
+    if (prDone.length) rows += row('Priorities', prDone.map(p => p.text).join(', '));
+    if (d.midday.energy) rows += row('Energy', d.midday.energy);
+    if (d.midday.timeWaster) rows += row('Time waster', esc(d.midday.timeWaster));
+    if (d.midday.intention) rows += row('Intention', esc(d.midday.intention));
+    if (d.midday.gratitude) rows += row('Gratitude', esc(d.midday.gratitude));
+  }
   if (!rows) rows = '<div style="color:var(--text-dim);padding:12px 0">No data for this day.</div>';
 
   el.innerHTML = '<div class="history-summary"><h3>' + k + '</h3>' + rows + '</div>';
@@ -1098,6 +1211,7 @@ function renderAll() {
   renderWake();
   renderAnchors();
   renderGoogleTasks();
+  renderMidday();
   renderBedtime();
 }
 
